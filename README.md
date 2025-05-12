@@ -61,15 +61,4 @@ Security: Enabled RLS with defined access policies per table.
 - **Database Migration**: SQL schema files
 - **Version Control**: Git
 
----
-
-## 🧠 Next Steps
-
-- Build out frontend components for item listings, chats, and favorites
-- Implement authentication and user profile forms
-- Add media upload UI
-- Sync Supabase with the local schema
-
----
-
 > Maintained by Charles5247 & contributors.
