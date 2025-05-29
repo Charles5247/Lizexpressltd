@@ -3,11 +3,41 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Add logging to help diagnose environment variable loading
+console.log('Supabase URL:', supabaseUrl);
+console.log('Supabase Anon Key exists:', !!supabaseAnonKey);
+
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Create the Supabase client with additional options for better error handling
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  },
+  global: {
+    headers: {
+      'x-application-name': 'swap-app'
+    }
+  },
+  db: {
+    schema: 'public'
+  }
+});
+
+// Test the connection and log any errors
+supabase.auth.getSession()
+  .then(() => {
+    console.log('Successfully connected to Supabase');
+  })
+  .catch(error => {
+    console.error('Supabase connection test failed:', error);
+    // Throw the error to make it visible in the browser console
+    throw new Error(`Failed to connect to Supabase: ${error.message}`);
+  });
 
 export type Profile = {
   id: string;

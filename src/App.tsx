@@ -1,6 +1,6 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import LandingPage from './pages/LandingPage';
@@ -17,7 +17,35 @@ import ItemDetails from './pages/ItemDetails';
 import Chat from './pages/Chat';
 import ListingCharge from './pages/ListingCharge';
 
+// Protected Route Component
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  
+  if (!user) {
+    return <Navigate to="/signin" />;
+  }
+  
+  return <>{children}</>;
+};
+
 function App() {
+  useEffect(() => {
+    // Request location permission when the app loads
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          localStorage.setItem('userLocation', JSON.stringify({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          }));
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+        }
+      );
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <Router>
@@ -28,16 +56,46 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route path="/signin" element={<SignIn />} />
               <Route path="/signup" element={<SignUp />} />
-              <Route path="/personal-data" element={<PersonalData />} />
-              <Route path="/id-verification" element={<IdVerification />} />
-              <Route path="/list-item" element={<ItemListing />} />
               <Route path="/browse" element={<Browse />} />
-              <Route path="/success" element={<SuccessMessage />} />
               <Route path="/terms" element={<Terms />} />
-              <Route path="/dashboard/*" element={<Dashboard />} />
               <Route path="/items/:id" element={<ItemDetails />} />
-              <Route path="/chat/:id" element={<Chat />} />
-              <Route path="/listing-charge" element={<ListingCharge />} />
+              
+              {/* Protected Routes */}
+              <Route path="/personal-data" element={
+                <ProtectedRoute>
+                  <PersonalData />
+                </ProtectedRoute>
+              } />
+              <Route path="/id-verification" element={
+                <ProtectedRoute>
+                  <IdVerification />
+                </ProtectedRoute>
+              } />
+              <Route path="/list-item" element={
+                <ProtectedRoute>
+                  <ItemListing />
+                </ProtectedRoute>
+              } />
+              <Route path="/success" element={
+                <ProtectedRoute>
+                  <SuccessMessage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/*" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/chat/:id" element={
+                <ProtectedRoute>
+                  <Chat />
+                </ProtectedRoute>
+              } />
+              <Route path="/listing-charge" element={
+                <ProtectedRoute>
+                  <ListingCharge />
+                </ProtectedRoute>
+              } />
             </Routes>
           </main>
           <Footer />

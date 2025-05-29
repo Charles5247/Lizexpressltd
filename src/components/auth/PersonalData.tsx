@@ -1,22 +1,38 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const PersonalData: React.FC = () => {
+  const navigate = useNavigate();
+  const { updateProfile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    fullName: '',
-    dateOfBirth: '',
+    full_name: '',
+    date_of_birth: '',
     language: '',
     gender: '',
-    address: '',
+    residential_address: '',
     country: '',
     state: '',
-    zipCode: '',
+    zip_code: '',
     nationality: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
+    try {
+      setLoading(true);
+      setError('');
+      await updateProfile(formData);
+      navigate('/id-verification');
+    } catch (err) {
+      setError('Failed to update profile');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,6 +50,12 @@ const PersonalData: React.FC = () => {
             </div>
           </div>
 
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              {error}
+            </div>
+          )}
+
           <p className="text-gray-600 mb-6">
             Ensure the data you submit matches with the information on your ID
           </p>
@@ -44,8 +66,8 @@ const PersonalData: React.FC = () => {
                 <label className="block text-[#4A0E67] mb-2">Full Names:</label>
                 <input
                   type="text"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                   required
                 />
@@ -55,8 +77,8 @@ const PersonalData: React.FC = () => {
                 <label className="block text-[#4A0E67] mb-2">Residential Address:</label>
                 <input
                   type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  value={formData.residential_address}
+                  onChange={(e) => setFormData({ ...formData, residential_address: e.target.value })}
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                   required
                 />
@@ -67,8 +89,8 @@ const PersonalData: React.FC = () => {
                 <div className="relative">
                   <input
                     type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    value={formData.date_of_birth}
+                    onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
                     className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                     required
                   />
@@ -85,7 +107,8 @@ const PersonalData: React.FC = () => {
                   required
                 >
                   <option value="">Select Country</option>
-                  {/* Add country options */}
+                  <option value="nigeria">Nigeria</option>
+                  {/* Add more countries */}
                 </select>
               </div>
 
@@ -98,7 +121,10 @@ const PersonalData: React.FC = () => {
                   required
                 >
                   <option value="">Select Preferred Language</option>
-                  {/* Add language options */}
+                  <option value="english">English</option>
+                  <option value="yoruba">Yoruba</option>
+                  <option value="hausa">Hausa</option>
+                  <option value="igbo">Igbo</option>
                 </select>
               </div>
 
@@ -112,7 +138,9 @@ const PersonalData: React.FC = () => {
                     required
                   >
                     <option value="">Select State</option>
-                    {/* Add state options */}
+                    <option value="lagos">Lagos</option>
+                    <option value="abuja">Abuja</option>
+                    {/* Add more states */}
                   </select>
                 </div>
 
@@ -120,8 +148,8 @@ const PersonalData: React.FC = () => {
                   <label className="block text-[#4A0E67] mb-2">Zip Code:</label>
                   <input
                     type="text"
-                    value={formData.zipCode}
-                    onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
+                    value={formData.zip_code}
+                    onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
                     className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                     required
                   />
@@ -152,7 +180,8 @@ const PersonalData: React.FC = () => {
                   required
                 >
                   <option value="">Select Country</option>
-                  {/* Add country options */}
+                  <option value="nigeria">Nigeria</option>
+                  {/* Add more countries */}
                 </select>
               </div>
             </div>
@@ -160,21 +189,26 @@ const PersonalData: React.FC = () => {
             <div className="flex justify-end">
               <button
                 type="submit"
-                className="bg-[#4A0E67] text-white p-4 rounded-full hover:bg-[#3a0b50] transition-colors"
+                disabled={loading}
+                className="bg-[#4A0E67] text-white p-4 rounded-full hover:bg-[#3a0b50] transition-colors disabled:opacity-50"
               >
-                <svg
-                  className="w-6 h-6 transform rotate-90"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M5 15l7-7 7 7"
-                  />
-                </svg>
+                {loading ? (
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <svg
+                    className="w-6 h-6 transform rotate-90"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M5 15l7-7 7 7"
+                    />
+                  </svg>
+                )}
               </button>
             </div>
           </form>

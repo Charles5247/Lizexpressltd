@@ -1,6 +1,9 @@
 import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 const Footer: React.FC = () => {
+  const { user } = useAuth();
+
   return (
     <footer className="bg-black text-white py-8">
       <div className="container mx-auto px-4">
@@ -8,9 +11,12 @@ const Footer: React.FC = () => {
           {/* Navigation Links */}
           <div>
             <ul className="space-y-2">
-              <li><a href="#" className="hover:text-[#F7941D] transition-colors">Home</a></li>
-              <li><a href="#" className="hover:text-[#F7941D] transition-colors">Browse</a></li>
-              <li><a href="#" className="hover:text-[#F7941D] transition-colors">Terms & Conditions</a></li>
+              <li><a href="/" className="hover:text-[#F7941D] transition-colors">Home</a></li>
+              <li><a href="/browse" className="hover:text-[#F7941D] transition-colors">Browse</a></li>
+              {user && (
+                <li><a href="/dashboard" className="hover:text-[#F7941D] transition-colors">Dashboard</a></li>
+              )}
+              <li><a href="/terms" className="hover:text-[#F7941D] transition-colors">Terms & Conditions</a></li>
               <li><a href="#" className="hover:text-[#F7941D] transition-colors">Privacy Policies</a></li>
             </ul>
           </div>

@@ -1,63 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import { Menu, X } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import { Menu, X } from "lucide-react";
 
-const Header: React.FC = () => {
+const Header = ({ user }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
 
-  // Close mobile menu when route changes
-  useEffect(() => {
+  const handleMenuToggle = () => {
+    setMobileMenuOpen((prev) => !prev);
+  };
+
+  const handleMenuClose = () => {
     setMobileMenuOpen(false);
-  }, [navigate]);
+  };
 
   return (
-    <header className="bg-[#4A0E67] text-white p-4 shadow-md relative z-50">
-      <div className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="text-xl font-bold flex items-center">
-          <span className="text-white">Liz</span>
-          <span className="text-[#F7941D]">Express</span>
+    <header className="bg-[#33004A] text-white py-2 shadow-md relative z-50">
+      <div className="container mx-auto flex justify-between items-center px-4 sm:px-6 lg:px-8">
+        {/* Logo - Larger */}
+        <Link to="/" className="flex-shrink-0">
+          <img
+            src="https://imgur.com/CtN9l7s.png" // Replace with your actual logo
+            alt="LizExpress"
+            className="h-20 w-auto object-contain" // Adjusted logo size
+          />
         </Link>
-        
-        {/* Desktop Navigation */}
+
+        {/* Desktop Nav */}
         <nav className="hidden md:flex items-center space-x-8">
-          <Link to="/" className="hover:text-[#F7941D] transition-colors">HOME</Link>
-          <Link to="/browse" className="hover:text-[#F7941D] transition-colors">BROWSE</Link>
-          <Link to="/dashboard" className="hover:text-[#F7941D] transition-colors">DASHBOARD</Link>
-          <Link to="/signin" className="bg-[#F7941D] text-white px-4 py-1 rounded hover:bg-[#e68a1c] transition-colors">
-            SIGN IN
+          <Link to="/" className="hover:text-[#F7941D] text-lg">HOME</Link>
+          <Link to="/browse" className="hover:text-[#F7941D] text-lg">BROWSE</Link>
+          {user && (
+            <>
+              <Link to="/dashboard" className="hover:text-[#F7941D] text-lg">DASHBOARD</Link>
+              <Link to="/list-item" className="hover:text-[#F7941D] text-lg">LIST ITEM</Link>
+            </>
+          )}
+          <Link
+            to={user ? "/dashboard" : "/signin"}
+            className="bg-[#F7941D] text-white px-6 py-2 rounded-full font-bold hover:bg-[#e68a1c] text-lg"
+          >
+            {user ? "MY ACCOUNT" : "SIGN IN"}
           </Link>
         </nav>
-        
-        {/* Mobile Menu Button */}
-        <button 
+
+        {/* Mobile Menu Toggle */}
+        <button
           className="md:hidden text-white z-50"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onClick={handleMenuToggle}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
         >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          {mobileMenuOpen ? <X size={32} /> : <Menu size={32} />}
         </button>
       </div>
-      
-      {/* Mobile Menu with transition */}
-      <div 
-        className={`fixed inset-0 bg-[#4A0E67] transform ${
-          mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+
+      {/* Mobile Nav - Half Drawer */}
+      <div
+        className={`fixed top-[70px] right-0 h-[70%] w-[70%] max-w-[300px] bg-[#33004A] shadow-lg z-40 rounded-l-xl transform ${
+          mobileMenuOpen ? "translate-x-0" : "translate-x-full"
         } transition-transform duration-300 ease-in-out md:hidden`}
-        style={{ top: '60px' }}
       >
-        <nav className="flex flex-col p-4 space-y-4">
-          <Link to="/" className="text-white hover:text-[#F7941D] transition-colors text-lg">
+        <nav className="flex flex-col p-6 space-y-5">
+          <Link to="/" onClick={handleMenuClose} className="text-white hover:text-[#F7941D] text-lg">
             HOME
           </Link>
-          <Link to="/browse" className="text-white hover:text-[#F7941D] transition-colors text-lg">
+          <Link to="/browse" onClick={handleMenuClose} className="text-white hover:text-[#F7941D] text-lg">
             BROWSE
           </Link>
-          <Link to="/dashboard" className="text-white hover:text-[#F7941D] transition-colors text-lg">
-            DASHBOARD
-          </Link>
-          <Link to="/signin" className="bg-[#F7941D] text-white px-4 py-2 rounded hover:bg-[#e68a1c] transition-colors text-center text-lg">
-            SIGN IN
+          {user && (
+            <>
+              <Link to="/dashboard" onClick={handleMenuClose} className="text-white hover:text-[#F7941D] text-lg">
+                DASHBOARD
+              </Link>
+              <Link to="/list-item" onClick={handleMenuClose} className="text-white hover:text-[#F7941D] text-lg">
+                LIST ITEM
+              </Link>
+            </>
+          )}
+          <Link
+            to={user ? "/dashboard" : "/signin"}
+            onClick={handleMenuClose}
+            className="bg-[#F7941D] text-white px-6 py-3 rounded-full font-bold text-center hover:bg-[#e68a1c] text-lg"
+          >
+            {user ? "MY ACCOUNT" : "SIGN IN"}
           </Link>
         </nav>
       </div>

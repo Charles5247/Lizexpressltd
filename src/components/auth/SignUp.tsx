@@ -1,15 +1,41 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const SignUp: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { signUp } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle sign up logic
+    
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (!agreeToTerms) {
+      setError('You must agree to the terms and conditions');
+      return;
+    }
+
+    try {
+      setError('');
+      setLoading(true);
+      await signUp(email, password);
+      navigate('/personal-data');
+    } catch (err) {
+      setError('Failed to create an account');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -20,6 +46,12 @@ const SignUp: React.FC = () => {
             <Link to="/signin" className="text-gray-500 hover:text-[#4A0E67]">SIGN IN</Link>
             <button className="text-[#4A0E67] font-bold border-b-2 border-[#4A0E67]">SIGN UP</button>
           </div>
+          
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              {error}
+            </div>
+          )}
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -70,9 +102,10 @@ const SignUp: React.FC = () => {
             
             <button
               type="submit"
-              className="w-full bg-[#4A0E67] text-white py-3 rounded font-bold hover:bg-[#3a0b50] transition-colors"
+              disabled={loading}
+              className="w-full bg-[#4A0E67] text-white py-3 rounded font-bold hover:bg-[#3a0b50] transition-colors disabled:opacity-50"
             >
-              SIGN UP
+              {loading ? 'Creating Account...' : 'SIGN UP'}
             </button>
           </form>
         </div>

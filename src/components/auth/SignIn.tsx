@@ -1,13 +1,29 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const SignIn: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { signIn } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle sign in logic
+    
+    try {
+      setError('');
+      setLoading(true);
+      await signIn(email, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setError('Failed to sign in');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -18,6 +34,12 @@ const SignIn: React.FC = () => {
             <button className="text-[#4A0E67] font-bold border-b-2 border-[#4A0E67]">SIGN IN</button>
             <Link to="/signup" className="text-gray-500 hover:text-[#4A0E67]">SIGN UP</Link>
           </div>
+          
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              {error}
+            </div>
+          )}
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -44,18 +66,16 @@ const SignIn: React.FC = () => {
             
             <button
               type="submit"
-              className="w-full bg-[#4A0E67] text-white py-3 rounded font-bold hover:bg-[#3a0b50] transition-colors"
+              disabled={loading}
+              className="w-full bg-[#4A0E67] text-white py-3 rounded font-bold hover:bg-[#3a0b50] transition-colors disabled:opacity-50"
             >
-              LOGIN
+              {loading ? 'Signing In...' : 'LOGIN'}
             </button>
             
             <div className="text-center space-y-4">
               <Link to="/forgot-password" className="text-[#4A0E67] hover:underline block">
                 Forgot Password?
               </Link>
-              <button className="text-[#4A0E67] hover:underline block w-full">
-                Continue with Google
-              </button>
             </div>
           </form>
         </div>
