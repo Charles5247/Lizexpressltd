@@ -1,3 +1,6 @@
+# Lizexpress-Project
+An E-commerce barter System, built to bridge the gap Of vendors who can't afford online presence or a physical store.
+
 # LizExpress - Production Deployment Guide
 
 ## 🚀 Production-Ready Features
@@ -104,7 +107,7 @@ public_key: "YOUR_ACTUAL_FLUTTERWAVE_PUBLIC_KEY"
 
 ### 4. Admin Access
 - **URL**: `https://lizexpressltd.com/admin`
-- **Credentials**: 
+- **Credentials**:
   - Email: `admin@lizexpress.com`
   - Password: `Lizexpress@2025`
 
