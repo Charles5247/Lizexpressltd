@@ -9,16 +9,16 @@ const Hero: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const slides: HeroSlide[] = [
-    { id: 1, image: '/Lizexpress Ltd images/Liz Web Images (3).jpg' },
-    { id: 2, image: '/Lizexpress Ltd images/Liz Web Images (4).jpg' },
-    { id: 3, image: '/Lizexpress Ltd images/Liz Web Images (7).jpg' },
-    { id: 4, image: '/Lizexpress Ltd images/Liz Web Images (8).jpg' },
-    { id: 5, image: '/Lizexpress Ltd images/Liz Web Images (10).jpg' },
-    { id: 6, image: '/Lizexpress Ltd images/Liz Web Images (11).jpg' },
-    { id: 7, image: '/Lizexpress Ltd images/Liz Web Images (13).jpg' },
-    { id: 8, image: '/Lizexpress Ltd images/Liz Web Images (15).jpg' },
-    { id: 9, image: '/Lizexpress Ltd images/Liz Web Images (16).jpg' },
-    { id: 10, image: '/Lizexpress Ltd images/Liz Web Images (18).jpg' }
+    { id: 1, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(3).jpg' },
+    { id: 2, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(4).jpg' },
+    { id: 3, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(7).jpg' },
+    { id: 4, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(8).jpg' },
+    { id: 5, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(10).jpg' },
+    { id: 6, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(11).jpg' },
+    { id: 7, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(13).jpg' },
+    { id: 8, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(15).jpg' },
+    { id: 9, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(16).jpg' },
+    { id: 10, image: '/Lizexpress_Ltd_images/Liz_Web_Images_(18).jpg' }
   ];
 
   // Auto-slide only if more than 1 slide
