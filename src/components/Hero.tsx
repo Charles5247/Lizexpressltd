@@ -25,6 +25,13 @@ const Hero: React.FC = () => {
       title: 'Trade your Appliances',
       subtitle: 'cashlessly',
       highlight: 'and efficiently!'
+    },
+    {
+      id: 3,
+      image: 'https://drive.google.com/file/d/1vQD9-4mYYvzVikn9IJEKb1zCm6a0v2EI/view?usp=drive_link',
+      title: 'Trade your Appliances',
+      subtitle: 'cashlessly',
+      highlight: 'and efficiently!'
     }
   ];
 
