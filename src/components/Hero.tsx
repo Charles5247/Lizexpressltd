@@ -54,6 +54,25 @@ const Hero: React.FC = () => {
               />
             </div>
           ))}
+          {/* Overlayed Carousel Indicators */}
+          {slides.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex justify-center">
+              <div className="bg-black/40 rounded-full px-4 py-2 flex gap-3 backdrop-blur-sm">
+                {slides.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => goToSlide(index)}
+                    className={`w-3 h-3 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white/70 ${
+                      index === currentSlide
+                        ? 'bg-[#F7941D] scale-125 shadow-lg'
+                        : 'bg-gray-300 hover:bg-[#F7941D]/70'
+                    }`}
+                    aria-label={`Go to slide ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Dot Navigation (Only if more than 1 slide) */}
