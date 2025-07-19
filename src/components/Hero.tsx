@@ -76,22 +76,6 @@ const Hero: React.FC = () => {
         </div>
 
         {/* Dot Navigation (Only if more than 1 slide) */}
-        {slides.length > 1 && (
-          <div className="mt-8 flex justify-center gap-3">
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => goToSlide(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  index === currentSlide
-                    ? 'bg-[#F7941D] scale-125 shadow-lg'
-                    : 'bg-gray-300 hover:bg-gray-400'
-                }`}
-                aria-label={`Go to slide ${index + 1}`}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Animation Styles */}
