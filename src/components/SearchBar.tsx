@@ -27,7 +27,7 @@ const SearchBar: React.FC = () => {
           className="flex flex-col md:flex-row md:items-center md:justify-between gap-2"
         >
           <div className="text-white text-sm text-center md:text-left">
-            Welcome to LizExpress where you swap and advertise your service...
+          Welcome to LizExpress where you swap and advertise your goods and services.
           </div>
 
           <div className="w-full md:max-w-md">
