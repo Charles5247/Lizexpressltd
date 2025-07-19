@@ -70,6 +70,7 @@ const Footer: React.FC = () => {
               <li><a href="/browse?category=Phones" className="hover:text-[#F7941D] transition-colors">Phones & Accessories</a></li>
               <li><a href="/browse?category=Computer" className="hover:text-[#F7941D] transition-colors">Computer & Accessories</a></li>
               <li><a href="/browse?category=Clothing" className="hover:text-[#F7941D] transition-colors">Fashion & Clothing</a></li>
+              <li><a href="/browse?category=Clothing" className="hover:text-[#F7941D] transition-colors">Others</a></li>
             </ul>
           </div>
 
