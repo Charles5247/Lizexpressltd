@@ -36,8 +36,8 @@ const Hero: React.FC = () => {
 
   return (
     <section className="relative bg-white overflow-hidden w-full">
-      <div className="max-w-7xl mx-auto px-4 py-10">
-        <div className="relative h-[500px] sm:h-[550px] md:h-[600px] lg:h-[650px] overflow-hidden">
+      <div className="w-full px-0 py-0">
+        <div className="relative w-full h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px] overflow-hidden">
           {slides.map((slide, index) => (
             <div
               key={slide.id}
@@ -50,7 +50,7 @@ const Hero: React.FC = () => {
               <img
                 src={slide.image}
                 alt={`Carousel Slide ${index + 1}`}
-                className="w-full max-w-[480px] object-contain drop-shadow-xl transition-transform duration-700 hover:scale-105"
+                className="w-full h-full object-cover"
               />
             </div>
           ))}
