@@ -14,7 +14,7 @@ const Hero: React.FC = () => {
   const slides: HeroSlide[] = [
     {
       id: 1,
-      image: 'https://imgur.com/HcVBiqw.png',
+      image: 'https://drive.google.com/uc?export=view&id=1vQD9-4mYYvzVikn9IJEKb1zCm6a0v2EI',
       title: 'Swap',
       subtitle: 'what you have',
       highlight: 'for what you need!'
