@@ -3,36 +3,22 @@ import React, { useState, useEffect } from 'react';
 interface HeroSlide {
   id: number;
   image: string;
-  title: string;
-  subtitle: string;
-  highlight: string;
 }
 
 const Hero: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const slides: HeroSlide[] = [
-    {
-      id: 1,
-      image: 'https://drive.google.com/uc?export=view&id=1vQD9-4mYYvzVikn9IJEKb1zCm6a0v2EI',
-      title: 'Swap',
-      subtitle: 'what you have',
-      highlight: 'for what you need!'
-    },
-    {
-      id: 3,
-      image: 'https://imgur.com/i6uhzyK.png',
-      title: 'Trade your Appliances',
-      subtitle: 'cashlessly',
-      highlight: 'and efficiently!'
-    },
-    {
-      id: 3,
-      image: 'https://drive.google.com/file/d/1vQD9-4mYYvzVikn9IJEKb1zCm6a0v2EI/view?usp=drive_link',
-      title: 'Trade your Appliances',
-      subtitle: 'cashlessly',
-      highlight: 'and efficiently!'
-    }
+    { id: 1, image: '/Lizexpress Ltd images/Liz Web Images (3).jpg' },
+    { id: 2, image: '/Lizexpress Ltd images/Liz Web Images (4).jpg' },
+    { id: 3, image: '/Lizexpress Ltd images/Liz Web Images (7).jpg' },
+    { id: 4, image: '/Lizexpress Ltd images/Liz Web Images (8).jpg' },
+    { id: 5, image: '/Lizexpress Ltd images/Liz Web Images (10).jpg' },
+    { id: 6, image: '/Lizexpress Ltd images/Liz Web Images (11).jpg' },
+    { id: 7, image: '/Lizexpress Ltd images/Liz Web Images (13).jpg' },
+    { id: 8, image: '/Lizexpress Ltd images/Liz Web Images (15).jpg' },
+    { id: 9, image: '/Lizexpress Ltd images/Liz Web Images (16).jpg' },
+    { id: 10, image: '/Lizexpress Ltd images/Liz Web Images (18).jpg' }
   ];
 
   // Auto-slide only if more than 1 slide
@@ -55,30 +41,17 @@ const Hero: React.FC = () => {
           {slides.map((slide, index) => (
             <div
               key={slide.id}
-              className={`absolute inset-0 flex flex-col md:flex-row-reverse items-center justify-between gap-6 md:gap-6 transition-all duration-1000 ease-in-out transform ${
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-1000 ease-in-out transform ${
                 index === currentSlide
                   ? 'opacity-100 translate-x-0 z-10'
                   : 'opacity-0 translate-x-full z-0'
               }`}
             >
-              {/* Text Content (Right) */}
-              <div className="w-full md:w-1/2 text-center md:text-left px-2 md:px-4 space-y-3 md:space-y-4 animate-fade-in-up">
-                <h1 className="text-[clamp(1.5rem,5vw,2.5rem)] font-extrabold leading-snug">
-                  <span className="text-[#4A0E67] block">{slide.title}</span>
-                  <span className="text-black block">{slide.subtitle}</span>
-                  <span className="text-[#F7941D] block">{slide.highlight}</span>
-                </h1>
-                <div className="w-14 h-1 bg-gradient-to-r from-[#4A0E67] to-[#F7941D] rounded-full mx-auto md:mx-0"></div>
-              </div>
-
-              {/* Image (Left) */}
-              <div className="w-full md:w-1/2 flex justify-center md:justify-start px-2">
-                <img
-                  src={slide.image}
-                  alt={`${slide.title} ${slide.subtitle}`}
-                  className="w-full max-w-[320px] sm:max-w-[380px] md:max-w-[420px] lg:max-w-[480px] object-contain drop-shadow-xl transition-transform duration-700 hover:scale-105"
-                />
-              </div>
+              <img
+                src={slide.image}
+                alt={`Carousel Slide ${index + 1}`}
+                className="w-full max-w-[480px] object-contain drop-shadow-xl transition-transform duration-700 hover:scale-105"
+              />
             </div>
           ))}
         </div>
