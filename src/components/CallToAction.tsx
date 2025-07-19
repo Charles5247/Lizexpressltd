@@ -11,7 +11,7 @@ const CallToAction: React.FC = () => {
           <div className="text-center md:text-left">
           <p className="text-lg md:text-xl font-medium text-center md:text-left break-words max-w-xs mx-auto md:max-w-full">
             Will you like to get what you want with what you have, <br className="hidden md:inline" />
-            spending little or <span className="whitespace-nowrap">NO CASH???</span>
+            spending <span className="whitespace-nowrap">NO CASH???</span>
           </p>
 
           </div>
