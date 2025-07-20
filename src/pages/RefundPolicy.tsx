@@ -15,7 +15,7 @@ const RefundPolicy: React.FC = () => {
           <section>
             <h2 className="text-2xl font-bold text-[#F7941D] mb-4">2. Duplicate or Erroneous Charges</h2>
             <div className="space-y-2 text-gray-700">
-              <p>Contact us at <a href="mailto:support@lizexpressltd.com" className="text-[#4A0E67] underline">support@lizexpressltd.com</a> for any errors or duplicate billing. Refunds, if approved, will be processed within 5–10 working days.</p>
+              <p>Contact us at <a href="mailto:lizexpressorg@gmail.com" className="text-[#4A0E67] underline">support@lizexpressltd.com</a> for any errors or duplicate billing. Refunds, if approved, will be processed within 5–10 working days.</p>
             </div>
           </section>
           <section>
@@ -33,8 +33,8 @@ const RefundPolicy: React.FC = () => {
           <section>
             <h2 className="text-2xl font-bold text-[#F7941D] mb-4">Contact</h2>
             <div className="space-y-2 text-gray-700">
-              <p>Email – <a href="mailto:support@lizexpressltd.com" className="text-[#4A0E67] underline">support@lizexpressltd.com</a></p>
-              <p>Phone – [Insert Number]</p>
+              <p>Email – <a href="mailto:lizexpressorg@gmail.com" className="text-[#4A0E67] underline">support@lizexpressltd.com</a></p>
+              <p>Phone –+234 904 8304 531</p>
             </div>
           </section>
         </div>
