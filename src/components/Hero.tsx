@@ -9,16 +9,15 @@ const Hero: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const slides: HeroSlide[] = [
-    { id: 1, image: '/Lizexpress_Ltd_images/Liz_Web_Images_3.jpg' },
-    { id: 2, image: '/Lizexpress_Ltd_images/Liz_Web_Images_4.jpg' },
-    { id: 3, image: '/Lizexpress_Ltd_images/Liz_Web_Images_7.jpg' },
-    { id: 4, image: '/Lizexpress_Ltd_images/Liz_Web_Images_8.jpg' },
-    { id: 5, image: '/Lizexpress_Ltd_images/Liz_Web_Images_10.jpg' },
-    { id: 6, image: '/Lizexpress_Ltd_images/Liz_Web_Images_11.jpg' },
-    { id: 7, image: '/Lizexpress_Ltd_images/Liz_Web_Images_13.jpg' },
-    { id: 8, image: '/Lizexpress_Ltd_images/Liz_Web_Images_15.jpg' },
-    { id: 9, image: '/Lizexpress_Ltd_images/Liz_Web_Images_16.jpg' },
-    { id: 10, image: '/Lizexpress_Ltd_images/Liz_Web_Images_18.jpg' }
+    { id: 1, image: '/Lizexpress_Ltd_images/3.svg' },
+    { id: 2, image: '/Lizexpress_Ltd_images/4.svg' },
+    { id: 3, image: '/Lizexpress_Ltd_images/8.svg' },
+    { id: 4, image: '/Lizexpress_Ltd_images/10.svg' },
+    { id: 5, image: '/Lizexpress_Ltd_images/11.svg' },
+    { id: 6, image: '/Lizexpress_Ltd_images/13.svg' },
+    { id: 7, image: '/Lizexpress_Ltd_images/15.svg' },
+    { id: 8, image: '/Lizexpress_Ltd_images/17.svg' },
+    { id: 9, image: '/Lizexpress_Ltd_images/19.svg' }
   ];
 
   // Auto-slide only if more than 1 slide
