@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Facebook, Instagram, Youtube, MessageCircle, Mail, Phone } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Footer: React.FC = () => {
   const { user } = useAuth();
@@ -51,13 +52,13 @@ const Footer: React.FC = () => {
           <div>
             <h3 className="font-bold text-lg mb-4">Quick Links</h3>
             <ul className="space-y-2">
-              <li><a href="/" className="hover:text-[#F7941D] transition-colors">Home</a></li>
-              <li><a href="/browse" className="hover:text-[#F7941D] transition-colors">Browse</a></li>
+              <li><Link to="/" className="hover:text-[#F7941D] transition-colors">Home</Link></li>
+              <li><Link to="/browse" className="hover:text-[#F7941D] transition-colors">Browse</Link></li>
               {user && (
-                <li><a href="/dashboard" className="hover:text-[#F7941D] transition-colors">Dashboard</a></li>
+                <li><Link to="/dashboard" className="hover:text-[#F7941D] transition-colors">Dashboard</Link></li>
               )}
-              <li><a href="/terms" className="hover:text-[#F7941D] transition-colors">Terms & Conditions</a></li>
-              <li><a href="#" className="hover:text-[#F7941D] transition-colors">Privacy Policies</a></li>
+              <li><Link to="/terms" className="hover:text-[#F7941D] transition-colors">Terms & Conditions</Link></li>
+              <li><Link to="/privacy" className="hover:text-[#F7941D] transition-colors">Privacy Policies</Link></li>
             </ul>
           </div>
           
