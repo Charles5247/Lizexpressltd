@@ -59,6 +59,7 @@ const Footer: React.FC = () => {
               )}
               <li><Link to="/terms" className="hover:text-[#F7941D] transition-colors">Terms & Conditions</Link></li>
               <li><Link to="/privacy" className="hover:text-[#F7941D] transition-colors">Privacy Policies</Link></li>
+              <li><Link to="/refund" className="hover:text-[#F7941D] transition-colors">Refund Policy</Link></li>
             </ul>
           </div>
           
