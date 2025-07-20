@@ -26,6 +26,7 @@ import EmailConfirmation from './components/auth/EmailConfirmation';
 import Settings from './pages/Settings';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -84,6 +85,7 @@ function AppContent() {
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/items/:id" element={<ItemDetails />} />
                 <Route path="/email-confirmation" element={<EmailConfirmation />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
                 
                 {/* Protected Routes */}
                 <Route path="/settings" element={
