@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Heart, MessageCircle, Filter, Grid, List } from 'lucide-react';
+import { Search, Heart, MessageCircle, Filter, Grid, List, X, Menu } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,7 @@ const Browse: React.FC = () => {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'nearest'>('newest');
+  const [showFilters, setShowFilters] = useState(false);
 
   const categories = [
     'Electronics', 'Furniture', 'Computer', 'Phones', 'Clothing',
@@ -301,141 +302,189 @@ const Browse: React.FC = () => {
     setSearchParams({});
   };
 
-  return (
-    <div className="min-h-screen bg-white">
-      <div className="flex">
-        {/* Sidebar */}
-        <div className="w-64 bg-[#F7941D] p-6 min-h-screen">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">List Your Item Here</h2>
-            <button 
-              onClick={() => navigate('/list-item')}
-              className="bg-[#4A0E67] text-white px-6 py-2 rounded-full hover:bg-[#3a0b50] transition-colors w-full"
+  // Filter sidebar component
+  const FilterSidebar = ({ className = "" }: { className?: string }) => (
+    <div className={`bg-[#F7941D] p-4 md:p-6 min-h-screen ${className}`}>
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4 md:hidden">
+          <h2 className="text-xl font-bold text-white">Filters</h2>
+          <button
+            onClick={() => setShowFilters(false)}
+            className="text-white p-1"
+          >
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className="hidden md:block mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-white mb-4">List Your Item Here</h2>
+          <button 
+            onClick={() => navigate('/list-item')}
+            className="bg-[#4A0E67] text-white px-4 md:px-6 py-2 rounded-full hover:bg-[#3a0b50] transition-colors w-full text-sm md:text-base"
+          >
+            List an Item
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg md:text-xl font-bold text-white">Filters</h3>
+            <button
+              onClick={clearFilters}
+              className="text-white text-sm underline hover:no-underline"
             >
-              List an Item
+              Clear All
             </button>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">Filters</h3>
-                <button
-                  onClick={clearFilters}
-                  className="text-white text-sm underline hover:no-underline"
-                >
-                  Clear All
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold text-white mb-4">Categories</h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {categories.map((category) => (
-                  <label key={category} className="flex items-center text-white text-sm">
-                    <input
-                      type="checkbox"
-                      className="mr-2"
-                      checked={selectedCategories.includes(category)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedCategories([...selectedCategories, category]);
-                        } else {
-                          setSelectedCategories(selectedCategories.filter(c => c !== category));
-                        }
-                      }}
-                    />
-                    {category}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold text-white mb-4">Condition</h3>
-              <div className="space-y-2">
-                <label className="flex items-center text-white text-sm">
-                  <input
-                    type="radio"
-                    name="condition"
-                    value=""
-                    checked={condition === ''}
-                    onChange={(e) => setCondition(e.target.value)}
-                    className="mr-2"
-                  />
-                  All Conditions
-                </label>
-                <label className="flex items-center text-white text-sm">
-                  <input
-                    type="radio"
-                    name="condition"
-                    value="Brand New"
-                    checked={condition === 'Brand New'}
-                    onChange={(e) => setCondition(e.target.value)}
-                    className="mr-2"
-                  />
-                  Brand New
-                </label>
-                <label className="flex items-center text-white text-sm">
-                  <input
-                    type="radio"
-                    name="condition"
-                    value="Fairly Used"
-                    checked={condition === 'Fairly Used'}
-                    onChange={(e) => setCondition(e.target.value)}
-                    className="mr-2"
-                  />
-                  Fairly Used
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold text-white mb-4">Sort By</h3>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'nearest')}
-                className="w-full p-2 rounded text-black"
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                {userLocation && <option value="nearest">Nearest to Me</option>}
-              </select>
-            </div>
           </div>
         </div>
 
+        <div>
+          <h3 className="text-base md:text-lg font-bold text-white mb-4">Categories</h3>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {categories.map((category) => (
+              <label key={category} className="flex items-center text-white text-sm">
+                <input
+                  type="checkbox"
+                  className="mr-2"
+                  checked={selectedCategories.includes(category)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedCategories([...selectedCategories, category]);
+                    } else {
+                      setSelectedCategories(selectedCategories.filter(c => c !== category));
+                    }
+                  }}
+                />
+                {category}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-base md:text-lg font-bold text-white mb-4">Condition</h3>
+          <div className="space-y-2">
+            <label className="flex items-center text-white text-sm">
+              <input
+                type="radio"
+                name="condition"
+                value=""
+                checked={condition === ''}
+                onChange={(e) => setCondition(e.target.value)}
+                className="mr-2"
+              />
+              All Conditions
+            </label>
+            <label className="flex items-center text-white text-sm">
+              <input
+                type="radio"
+                name="condition"
+                value="Brand New"
+                checked={condition === 'Brand New'}
+                onChange={(e) => setCondition(e.target.value)}
+                className="mr-2"
+              />
+              Brand New
+            </label>
+            <label className="flex items-center text-white text-sm">
+              <input
+                type="radio"
+                name="condition"
+                value="Fairly Used"
+                checked={condition === 'Fairly Used'}
+                onChange={(e) => setCondition(e.target.value)}
+                className="mr-2"
+              />
+              Fairly Used
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-base md:text-lg font-bold text-white mb-4">Sort By</h3>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'nearest')}
+            className="w-full p-2 rounded text-black text-sm"
+          >
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            {userLocation && <option value="nearest">Nearest to Me</option>}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="flex">
+        {/* Desktop Sidebar */}
+        <div className="hidden md:block w-64 lg:w-72">
+          <FilterSidebar />
+        </div>
+
+        {/* Mobile Filter Overlay */}
+        {showFilters && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden">
+            <div className="w-80 max-w-sm">
+              <FilterSidebar />
+            </div>
+          </div>
+        )}
+
         {/* Main Content */}
-        <div className="flex-1 p-6">
-          <div className="flex justify-between items-center mb-8">
+        <div className="flex-1 p-3 md:p-6">
+          {/* Mobile Header */}
+          <div className="md:hidden mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setShowFilters(true)}
+                className="flex items-center bg-[#F7941D] text-white px-3 py-2 rounded-lg"
+              >
+                <Filter size={18} className="mr-2" />
+                Filters
+              </button>
+              <button 
+                onClick={() => navigate('/list-item')}
+                className="bg-[#4A0E67] text-white px-3 py-2 rounded-lg text-sm"
+              >
+                List Item
+              </button>
+            </div>
+          </div>
+
+          {/* Search and Controls */}
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 space-y-4 md:space-y-0">
             <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
               <input
                 type="text"
                 placeholder="Search items to swap..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-full border focus:outline-none focus:border-[#4A0E67]"
+                className="w-full pl-10 pr-4 py-2 rounded-full border focus:outline-none focus:border-[#4A0E67] text-sm md:text-base"
               />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             </form>
             
-            <div className="flex items-center space-x-4">
-              <p className="text-gray-600">
-                {items.length} items available for swap
+            <div className="flex items-center justify-between md:justify-end md:space-x-4">
+              <p className="text-gray-600 text-sm md:text-base">
+                {items.length} items
               </p>
               <div className="flex border rounded-lg">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 ${viewMode === 'grid' ? 'bg-[#4A0E67] text-white' : 'text-gray-600'}`}
                 >
-                  <Grid size={20} />
+                  <Grid size={16} md:size={20} />
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 ${viewMode === 'list' ? 'bg-[#4A0E67] text-white' : 'text-gray-600'}`}
                 >
-                  <List size={20} />
+                  <List size={16} md:size={20} />
                 </button>
               </div>
             </div>
@@ -456,7 +505,7 @@ const Browse: React.FC = () => {
 
           {!user && (
             <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative mb-4">
-              <p className="mb-2">
+              <p className="mb-2 text-sm md:text-base">
                 <strong>Sign in to unlock all features:</strong> Save favorites, start conversations, and list your own items!
               </p>
               <button
@@ -474,71 +523,71 @@ const Browse: React.FC = () => {
             </div>
           ) : (
             <div className={viewMode === 'grid' 
-              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" 
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6" 
               : "space-y-4"
             }>
               {items.map((item) => (
                 <div key={item.id} className={`bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow ${
                   viewMode === 'list' ? 'flex' : ''
                 }`}>
-                  <div className={`relative ${viewMode === 'list' ? 'w-48 h-48' : ''}`}>
+                  <div className={`relative ${viewMode === 'list' ? 'w-32 sm:w-48 h-32 sm:h-48' : ''}`}>
                     <img 
                       src={item.images[0]} 
                       alt={item.name} 
                       className={`object-cover cursor-pointer ${
-                        viewMode === 'list' ? 'w-full h-full' : 'w-full h-48'
+                        viewMode === 'list' ? 'w-full h-full' : 'w-full h-40 sm:h-48'
                       }`}
                       onClick={() => navigate(`/items/${item.id}`)}
                     />
                     {user && (
                       <button
                         onClick={() => toggleFavorite(item.id)}
-                        className={`absolute top-2 right-2 p-2 rounded-full ${
+                        className={`absolute top-2 right-2 p-1.5 sm:p-2 rounded-full ${
                           favorites.has(item.id) 
                             ? 'bg-red-500 text-white' 
                             : 'bg-white text-gray-600 hover:bg-gray-100'
                         } transition-colors`}
                       >
-                        <Heart size={16} fill={favorites.has(item.id) ? 'currentColor' : 'none'} />
+                        <Heart size={14} fill={favorites.has(item.id) ? 'currentColor' : 'none'} />
                       </button>
                     )}
                   </div>
-                  <div className="p-4 flex-1">
-                    <h3 className="font-semibold text-lg mb-2 cursor-pointer hover:text-[#4A0E67]" 
+                  <div className="p-3 sm:p-4 flex-1">
+                    <h3 className="font-semibold text-base sm:text-lg mb-2 cursor-pointer hover:text-[#4A0E67] line-clamp-1" 
                         onClick={() => navigate(`/items/${item.id}`)}>
                       {item.name}
                     </h3>
-                    <p className="text-sm text-gray-600 mb-1">
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs ${
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs mb-1 sm:mb-0 ${
                         item.condition === 'Brand New' ? 'bg-green-100 text-green-800' :
                         item.condition === 'Fairly Used' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-orange-100 text-orange-800'
                       }`}>
                         {item.condition}
                       </span>
-                      <span className="ml-2 text-[#4A0E67]">{item.category}</span>
-                    </p>
-                    <p className="text-sm text-gray-600 mb-2">
+                      <span className="text-xs sm:text-sm text-[#4A0E67] font-medium">{item.category}</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-1">
                       <strong>Looking for:</strong> {item.swap_for}
                     </p>
-                    <p className="text-sm text-gray-500 mb-3 flex items-center">
+                    <p className="text-xs text-gray-500 mb-3">
                       By: {item.users?.full_name || 'Anonymous'}
-                      <span className="ml-2 text-xs">
+                      <span className="ml-2">
                         • {new Date(item.created_at).toLocaleDateString()}
                       </span>
                     </p>
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleStartChat(item.id, item.user_id)}
-                        className="flex-1 bg-[#4A0E67] text-white py-2 px-3 rounded text-sm hover:bg-[#3a0b50] transition-colors flex items-center justify-center"
+                        className="flex-1 bg-[#4A0E67] text-white py-2 px-2 sm:px-3 rounded text-xs sm:text-sm hover:bg-[#3a0b50] transition-colors flex items-center justify-center"
                         disabled={!user}
                       >
-                        <MessageCircle size={16} className="mr-1" />
-                        {user ? 'Chat' : 'Sign in to Chat'}
+                        <MessageCircle size={14} className="mr-1" />
+                        {user ? 'Chat' : 'Sign in'}
                       </button>
                       <button
                         onClick={() => navigate(`/items/${item.id}`)}
-                        className="bg-[#F7941D] text-white py-2 px-3 rounded text-sm hover:bg-[#e68a1c] transition-colors"
+                        className="bg-[#F7941D] text-white py-2 px-2 sm:px-3 rounded text-xs sm:text-sm hover:bg-[#e68a1c] transition-colors"
                       >
                         View
                       </button>
@@ -554,18 +603,20 @@ const Browse: React.FC = () => {
                   {user ? (
                     <div>
                       <p className="text-gray-400 mb-4">Try adjusting your search criteria or be the first to list an item!</p>
-                      <button
-                        onClick={clearFilters}
-                        className="mr-4 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                      >
-                        Clear Filters
-                      </button>
-                      <button
-                        onClick={() => navigate('/list-item')}
-                        className="bg-[#F7941D] text-white px-4 py-2 rounded hover:bg-[#e68a1c]"
-                      >
-                        List Your First Item
-                      </button>
+                      <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                        <button
+                          onClick={clearFilters}
+                          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                        >
+                          Clear Filters
+                        </button>
+                        <button
+                          onClick={() => navigate('/list-item')}
+                          className="bg-[#F7941D] text-white px-4 py-2 rounded hover:bg-[#e68a1c]"
+                        >
+                          List Your First Item
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div>
