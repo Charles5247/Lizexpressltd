@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Heart, MessageCircle, Filter, Grid, List, X, Menu } from 'lucide-react';
+import { Search, Heart, MessageCircle, Filter, Grid, List, X, Clock } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,7 +65,7 @@ const Browse: React.FC = () => {
       setError(null);
       setLoading(true);
 
-      console.log('Fetching items from database...');
+      console.log('Fetching approved items from database...');
 
       let query = supabase
         .from('items')
@@ -73,7 +73,7 @@ const Browse: React.FC = () => {
           *,
           users!inner(id, full_name, avatar_url)
         `)
-        .eq('status', 'active');
+        .eq('status', 'active'); // Only show approved items
 
       // Exclude current user's items to focus on items available for swapping
       if (user) {
@@ -106,7 +106,7 @@ const Browse: React.FC = () => {
         throw error;
       }
 
-      console.log(`Fetched ${data?.length || 0} items from database`);
+      console.log(`Fetched ${data?.length || 0} approved items from database`);
 
       // Sort by location if user's location is available and sorting by nearest
       let sortedData = data || [];
@@ -461,7 +461,7 @@ const Browse: React.FC = () => {
             <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
               <input
                 type="text"
-                placeholder="Search items to swap..."
+                placeholder="Search approved items..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 rounded-full border focus:outline-none focus:border-[#4A0E67] text-sm md:text-base"
@@ -471,20 +471,20 @@ const Browse: React.FC = () => {
             
             <div className="flex items-center justify-between md:justify-end md:space-x-4">
               <p className="text-gray-600 text-sm md:text-base">
-                {items.length} items
+                {items.length} approved items
               </p>
               <div className="flex border rounded-lg">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 ${viewMode === 'grid' ? 'bg-[#4A0E67] text-white' : 'text-gray-600'}`}
                 >
-                  <Grid size={16} md:size={20} />
+                  <Grid size={16} />
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 ${viewMode === 'list' ? 'bg-[#4A0E67] text-white' : 'text-gray-600'}`}
                 >
-                  <List size={16} md:size={20} />
+                  <List size={16} />
                 </button>
               </div>
             </div>
@@ -527,7 +527,7 @@ const Browse: React.FC = () => {
               : "space-y-4"
             }>
               {items.map((item) => (
-                <div key={item.id} className={`bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow ${
+                <div key={item.id} className={`bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow border-l-4 border-green-500 ${
                   viewMode === 'list' ? 'flex' : ''
                 }`}>
                   <div className={`relative ${viewMode === 'list' ? 'w-32 sm:w-48 h-32 sm:h-48' : ''}`}>
@@ -551,6 +551,10 @@ const Browse: React.FC = () => {
                         <Heart size={14} fill={favorites.has(item.id) ? 'currentColor' : 'none'} />
                       </button>
                     )}
+                    {/* Approved indicator */}
+                    <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                      ✓ Approved
+                    </div>
                   </div>
                   <div className="p-3 sm:p-4 flex-1">
                     <h3 className="font-semibold text-base sm:text-lg mb-2 cursor-pointer hover:text-[#4A0E67] line-clamp-1" 
@@ -598,11 +602,11 @@ const Browse: React.FC = () => {
               
               {items.length === 0 && !loading && (
                 <div className="col-span-full text-center py-12">
-                  <Search size={48} className="mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-500 text-lg mb-2">No items found for swapping</p>
+                  <Clock size={48} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-500 text-lg mb-2">No approved items found</p>
                   {user ? (
                     <div>
-                      <p className="text-gray-400 mb-4">Try adjusting your search criteria or be the first to list an item!</p>
+                      <p className="text-gray-400 mb-4">Items need admin approval before appearing here. Try adjusting your search criteria!</p>
                       <div className="flex flex-col sm:flex-row gap-2 justify-center">
                         <button
                           onClick={clearFilters}
@@ -614,13 +618,13 @@ const Browse: React.FC = () => {
                           onClick={() => navigate('/list-item')}
                           className="bg-[#F7941D] text-white px-4 py-2 rounded hover:bg-[#e68a1c]"
                         >
-                          List Your First Item
+                          List Your Item
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div>
-                      <p className="text-gray-400 mb-4">Sign in to see all available items and start swapping!</p>
+                      <p className="text-gray-400 mb-4">Sign in to see all approved items and start swapping!</p>
                       <button
                         onClick={() => navigate('/signin')}
                         className="bg-[#4A0E67] text-white px-6 py-2 rounded hover:bg-[#3a0b50]"
