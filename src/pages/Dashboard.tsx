@@ -369,6 +369,14 @@ function Dashboard() {
                               }`}>
                                 {item.condition}
                               </span>
+                              <span className={`ml-2 inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                item.status === 'active' ? 'bg-green-100 text-green-800' :
+                                item.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {item.status === 'active' ? 'Approved' : 
+                                 item.status === 'rejected' ? 'Rejected' : 'Pending Review'}
+                              </span>
                             </p>
                             <p className="text-xs sm:text-sm text-gray-600 line-clamp-1">
                               <strong>Swap for:</strong> {item.swap_for}

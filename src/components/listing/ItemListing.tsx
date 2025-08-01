@@ -175,7 +175,7 @@ const ItemListing: React.FC = () => {
         location: location,
         images: imageUrls,
         receipt_image: receiptUrl,
-        status: 'active'
+        status: 'pending' // Always start as pending for admin approval
       };
 
       const { data, error } = await supabase
@@ -191,9 +191,9 @@ const ItemListing: React.FC = () => {
         .from('notifications')
         .insert({
           user_id: user!.id,
-          type: 'item_listed',
-          title: 'Item Listed Successfully',
-          content: `Your item "${formData.itemName}" has been listed successfully and is now visible to other users.`
+          type: 'item_submitted',
+          title: 'Item Submitted for Review! ⏳',
+          content: `Your item "${formData.itemName}" has been submitted for admin review. You'll be notified once it's approved and visible to other users.`
         });
 
       navigate('/dashboard');

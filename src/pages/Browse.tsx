@@ -65,7 +65,7 @@ const Browse: React.FC = () => {
       setError(null);
       setLoading(true);
 
-      console.log('Fetching approved items from database...');
+      console.log('Fetching items from database...');
 
       let query = supabase
         .from('items')
@@ -73,23 +73,29 @@ const Browse: React.FC = () => {
           *,
           users!inner(id, full_name, avatar_url)
         `)
-        .eq('status', 'active'); // Only show approved items
+        .eq('status', 'active'); // Only show approved/active items
+
+      console.log('Query filters applied: status = active');
 
       // Exclude current user's items to focus on items available for swapping
       if (user) {
         query = query.neq('user_id', user.id);
+        console.log('Excluding current user items:', user.id);
       }
 
       if (selectedCategories.length > 0) {
         query = query.in('category', selectedCategories);
+        console.log('Category filter:', selectedCategories);
       }
 
       if (condition) {
         query = query.eq('condition', condition);
+        console.log('Condition filter:', condition);
       }
 
       if (searchQuery) {
         query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,swap_for.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`);
+        console.log('Search query:', searchQuery);
       }
 
       // Apply sorting
@@ -106,7 +112,11 @@ const Browse: React.FC = () => {
         throw error;
       }
 
-      console.log(`Fetched ${data?.length || 0} approved items from database`);
+      console.log(`Fetched ${data?.length || 0} active items from database`);
+      
+      if (data && data.length > 0) {
+        console.log('Sample item:', data[0]);
+      }
 
       // Sort by location if user's location is available and sorting by nearest
       let sortedData = data || [];
@@ -121,7 +131,7 @@ const Browse: React.FC = () => {
       setItems(sortedData);
     } catch (err) {
       console.error('Error fetching items:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch items. Please check your connection.');
+      setError(err instanceof Error ? err.message : 'Failed to fetch items. Please try again.');
     } finally {
       setLoading(false);
     }
