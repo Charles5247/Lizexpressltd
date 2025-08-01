@@ -73,14 +73,14 @@ const Browse: React.FC = () => {
           *,
           users!inner(id, full_name, avatar_url)
         `)
-        .eq('status', 'active'); // Only show approved/active items
+        .eq('status', 'active'); // Only show admin-approved items
 
       console.log('Query filters applied: status = active');
 
       // Exclude current user's items to focus on items available for swapping
       if (user) {
         query = query.neq('user_id', user.id);
-        console.log('Excluding current user items:', user.id);
+        console.log('Excluding current user items for browse:', user.id);
       }
 
       if (selectedCategories.length > 0) {

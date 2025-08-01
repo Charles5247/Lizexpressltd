@@ -57,7 +57,7 @@ function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (itemsError) throw itemsError;
-      setItems(itemsData || []);
+      setItems(itemsData || []); // Show all user's items regardless of status
 
       // Fetch favorites
       const { data: favoritesData, error: favoritesError } = await supabase
