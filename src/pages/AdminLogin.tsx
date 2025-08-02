@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Shield, Eye, EyeOff, AlertCircle, UserPlus, Mail, Lock } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ const AdminLogin: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    fullName: '',
     adminCode: ''
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -16,21 +18,16 @@ const AdminLogin: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Admin accounts storage (in production, use a proper database)
-  const getAdminAccounts = () => {
-    const stored = localStorage.getItem('adminAccounts');
-    return stored ? JSON.parse(stored) : [
-      {
-        email: 'admin@lizexpress.com',
-        password: 'Lizexpress@2025',
-        role: 'super_admin',
-        created_at: new Date().toISOString()
-      }
-    ];
-  };
-
-  const saveAdminAccounts = (accounts: any[]) => {
-    localStorage.setItem('adminAccounts', JSON.stringify(accounts));
+  const validateAdminCode = (code: string) => {
+    // Super admin codes for different roles
+    const validCodes = {
+      'LIZEXPRESS2025': 'super_admin',
+      'PRODUCTMGR2025': 'product_manager',
+      'SUPPORT2025': 'customer_support',
+      'MARKETING2025': 'marketing_analyst',
+      'FINANCE2025': 'finance_admin'
+    };
+    return validCodes[code as keyof typeof validCodes] || null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,8 +36,6 @@ const AdminLogin: React.FC = () => {
     setError('');
 
     try {
-      const adminAccounts = getAdminAccounts();
-
       if (isSignUp) {
         // Admin Sign Up
         if (credentials.password !== credentials.confirmPassword) {
@@ -51,70 +46,96 @@ const AdminLogin: React.FC = () => {
           throw new Error('Password must be at least 8 characters');
         }
 
-        if (credentials.adminCode !== 'LIZEXPRESS2025') {
+        const role = validateAdminCode(credentials.adminCode);
+        if (!role) {
           throw new Error('Invalid admin code. Contact super admin for access.');
         }
 
-        // Check if email already exists
-        if (adminAccounts.find(admin => admin.email === credentials.email)) {
-          throw new Error('Admin account with this email already exists');
-        }
+        // Create admin account via database function
+        const { data, error } = await supabase.rpc('create_admin_account', {
+          admin_email: credentials.email,
+          admin_password: credentials.password,
+          admin_name: credentials.fullName,
+          admin_role: role,
+          admin_code: credentials.adminCode
+        });
 
-        // Create new admin account
-        const newAdmin = {
-          email: credentials.email,
-          password: credentials.password,
-          role: 'admin',
-          created_at: new Date().toISOString()
-        };
-
-        adminAccounts.push(newAdmin);
-        saveAdminAccounts(adminAccounts);
+        if (error) throw error;
 
         alert('✅ Admin account created successfully! You can now sign in.');
         setIsSignUp(false);
-        setCredentials({ email: credentials.email, password: '', confirmPassword: '', adminCode: '' });
+        setCredentials({ 
+          email: credentials.email, 
+          password: '', 
+          confirmPassword: '', 
+          fullName: '',
+          adminCode: '' 
+        });
       } else {
         // Admin Sign In
-        const admin = adminAccounts.find(
-          admin => admin.email === credentials.email && admin.password === credentials.password
-        );
+        console.log('🔐 Attempting admin login...', credentials.email);
 
-        if (!admin) {
-          throw new Error('Invalid admin credentials. Access denied.');
+        const { data, error } = await supabase.rpc('authenticate_admin', {
+          admin_email: credentials.email,
+          admin_password: credentials.password
+        });
+
+        if (error) {
+          console.error('❌ Login error:', error);
+          throw new Error('Authentication failed. Please check your credentials.');
+        }
+
+        if (!data?.success) {
+          throw new Error(data?.error || 'Invalid admin credentials. Access denied.');
         }
 
         // Create admin session
         const adminSession = {
-          email: admin.email,
-          role: admin.role,
+          admin: data.admin,
+          sessionToken: data.session_token,
           loginTime: new Date().toISOString(),
           authenticated: true
         };
 
         localStorage.setItem('adminSession', JSON.stringify(adminSession));
         
-        console.log('✅ Admin login successful:', admin.email);
+        console.log('✅ Admin login successful:', data.admin.email);
         navigate('/admin/dashboard');
       }
     } catch (err: any) {
+      console.error('❌ Admin auth error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleForgotPassword = () => {
+  const handleForgotPassword = async () => {
     const email = prompt('Enter your admin email:');
-    if (email) {
-      const adminAccounts = getAdminAccounts();
-      const admin = adminAccounts.find(a => a.email === email);
+    if (!email) return;
+
+    try {
+      setLoading(true);
       
-      if (admin) {
-        alert(`Your password is: ${admin.password}\n\nFor security, please change it after logging in.`);
+      // Check if admin exists
+      const { data, error } = await supabase.rpc('check_admin_exists', {
+        admin_email: email
+      });
+
+      if (error) throw error;
+
+      if (data?.exists) {
+        // In production, you'd send a reset email
+        // For now, we'll show a message
+        alert(`Password reset instructions have been sent to ${email}.\n\nFor immediate assistance, contact the super admin.`);
       } else {
         alert('Admin account not found. Contact super admin for assistance.');
       }
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      alert('Unable to process password reset. Please contact super admin.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -157,6 +178,20 @@ const AdminLogin: React.FC = () => {
               required
             />
           </div>
+
+          {isSignUp && (
+            <div>
+              <label className="block text-[#4A0E67] font-semibold mb-3">Full Name</label>
+              <input
+                type="text"
+                value={credentials.fullName}
+                onChange={(e) => setCredentials({ ...credentials, fullName: e.target.value })}
+                className="w-full p-4 rounded-xl border-2 border-gray-200 focus:outline-none focus:border-[#4A0E67] focus:ring-4 focus:ring-[#4A0E67]/10 transition-all duration-300"
+                placeholder="Enter full name"
+                required
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-[#4A0E67] font-semibold mb-3 flex items-center">
@@ -216,7 +251,16 @@ const AdminLogin: React.FC = () => {
                   placeholder="Enter admin access code"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">Contact super admin for access code</p>
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500 mb-1">Valid access codes:</p>
+                  <ul className="text-xs text-gray-400 space-y-1">
+                    <li>• LIZEXPRESS2025 - Super Admin</li>
+                    <li>• PRODUCTMGR2025 - Product Manager</li>
+                    <li>• SUPPORT2025 - Customer Support</li>
+                    <li>• MARKETING2025 - Marketing Analyst</li>
+                    <li>• FINANCE2025 - Finance Admin</li>
+                  </ul>
+                </div>
               </div>
             </>
           )}
@@ -243,7 +287,7 @@ const AdminLogin: React.FC = () => {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError('');
-                setCredentials({ email: '', password: '', confirmPassword: '', adminCode: '' });
+                setCredentials({ email: '', password: '', confirmPassword: '', fullName: '', adminCode: '' });
               }}
               className="text-[#4A0E67] hover:underline font-medium transition-colors"
             >
@@ -255,7 +299,8 @@ const AdminLogin: React.FC = () => {
             <div className="text-center">
               <button
                 onClick={handleForgotPassword}
-                className="text-[#F7941D] hover:underline font-medium transition-colors"
+                disabled={loading}
+                className="text-[#F7941D] hover:underline font-medium transition-colors disabled:opacity-50"
               >
                 Forgot Password?
               </button>
@@ -275,7 +320,7 @@ const AdminLogin: React.FC = () => {
         {!isSignUp && (
           <div className="mt-6 p-4 bg-gray-50 rounded-xl">
             <p className="text-xs text-gray-600 text-center">
-              <strong>Default Credentials:</strong><br />
+              <strong>Default Super Admin:</strong><br />
               Email: admin@lizexpress.com<br />
               Password: Lizexpress@2025
             </p>

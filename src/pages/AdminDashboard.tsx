@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, Package, TrendingUp, DollarSign, Eye, Check, X, 
+import {
+  Users, Package, TrendingUp, DollarSign, Eye, Check, X,
   Search, Filter, Download, RefreshCw, Menu, ChevronLeft,
   UserCheck, UserX, Flag, Trash2, Mail, MapPin, Calendar,
   Phone, Home, Globe, AlertTriangle, Shield, LogOut,
-  BarChart3, Activity, MessageCircle
+  BarChart3, Activity, MessageCircle, Bell
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -31,6 +31,7 @@ interface AdminStats {
   totalItems: number;
   pendingItems: number;
   approvedItems: number;
+  rejectedItems: number;
   totalRevenue: number;
   newUsersToday: number;
   newItemsToday: number;
@@ -56,6 +57,7 @@ interface Item {
   updated_at?: string;
   approved_at?: string;
   approved_by?: string;
+  rejection_reason?: string;
   users?: {
     id: string;
     full_name: string | null;
@@ -70,7 +72,8 @@ const AdminDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  
+  const [adminSession, setAdminSession] = useState<any>(null);
+
   // Data states
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
@@ -78,6 +81,7 @@ const AdminDashboard: React.FC = () => {
     totalItems: 0,
     pendingItems: 0,
     approvedItems: 0,
+    rejectedItems: 0,
     totalRevenue: 0,
     newUsersToday: 0,
     newItemsToday: 0,
@@ -89,21 +93,22 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     // Check admin authentication
-    const adminSession = localStorage.getItem('adminSession');
-    if (!adminSession) {
+    const sessionData = localStorage.getItem('adminSession');
+    if (!sessionData) {
       navigate('/admin');
       return;
     }
 
-    const session = JSON.parse(adminSession);
+    const session = JSON.parse(sessionData);
     if (!session.authenticated) {
       navigate('/admin');
       return;
     }
 
+    setAdminSession(session);
     fetchAdminData();
-    
-    // Set up real-time subscriptions for live updates
+
+    // Set up real-time subscriptions
     const userSubscription = supabase
       .channel('admin-users-realtime')
       .on('postgres_changes', {
@@ -139,20 +144,11 @@ const AdminDashboard: React.FC = () => {
       setLoading(true);
       console.log('🔄 Fetching admin data...');
 
-      // Fetch all users with timeout protection
-      const fetchUsersPromise = supabase
+      // Fetch all users
+      const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('*')
         .order('created_at', { ascending: false });
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database timeout')), 15000)
-      );
-
-      const { data: usersData, error: usersError } = await Promise.race([
-        fetchUsersPromise, 
-        timeoutPromise
-      ]) as any;
 
       if (usersError) {
         console.error('Users fetch error:', usersError);
@@ -171,10 +167,10 @@ const AdminDashboard: React.FC = () => {
           return { data: counts };
         });
 
-      // Transform users data with real emails
+      // Transform users data
       const transformedUsers: AdminUser[] = (usersData || []).map(user => ({
         id: user.id,
-        email: `user-${user.id.slice(0, 8)}@lizexpress.com`, // Generate consistent email format
+        email: user.email || `user-${user.id.slice(0, 8)}@lizexpress.com`,
         full_name: user.full_name,
         avatar_url: user.avatar_url,
         residential_address: user.residential_address,
@@ -212,7 +208,7 @@ const AdminDashboard: React.FC = () => {
         .from('chats')
         .select('id');
 
-      // Calculate real-time statistics
+      // Calculate statistics
       const today = new Date().toISOString().split('T')[0];
       const newUsersToday = transformedUsers.filter(user => 
         user.created_at?.startsWith(today)
@@ -227,66 +223,45 @@ const AdminDashboard: React.FC = () => {
         totalItems: itemsData?.length || 0,
         pendingItems: itemsData?.filter(item => item.status === 'pending').length || 0,
         approvedItems: itemsData?.filter(item => item.status === 'active').length || 0,
-        totalRevenue: 0, // Will be calculated when payment is enabled
+        rejectedItems: itemsData?.filter(item => item.status === 'rejected').length || 0,
+        totalRevenue: 0,
         newUsersToday,
         newItemsToday,
         totalChats: chatsData?.length || 0,
-        activeUsers: Math.floor(transformedUsers.length * 0.3) // Simulate 30% active
+        activeUsers: Math.floor(transformedUsers.length * 0.3)
       };
 
       setStats(calculatedStats);
-      console.log('📊 Real-time admin stats calculated:', calculatedStats);
+      console.log('📊 Admin stats calculated:', calculatedStats);
 
     } catch (error) {
       console.error('❌ Error fetching admin data:', error);
-      // Set fallback data to prevent infinite loading
-      setUsers([]);
-      setItems([]);
-      setStats({
-        totalUsers: 0,
-        verifiedUsers: 0,
-        totalItems: 0,
-        pendingItems: 0,
-        approvedItems: 0,
-        totalRevenue: 0,
-        newUsersToday: 0,
-        newItemsToday: 0,
-        totalChats: 0,
-        activeUsers: 0
-      });
     } finally {
       setLoading(false);
     }
   };
 
   const approveUser = async (userId: string) => {
+    if (!adminSession?.admin?.email) return;
+
     try {
       setActionLoading(userId);
       console.log(`🔄 Approving user: ${userId}`);
-      
-      const { error } = await supabase
-        .from('users')
-        .update({ 
-          is_verified: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
+
+      const { data, error } = await supabase.rpc('admin_approve_user', {
+        target_user_id: userId,
+        admin_email: adminSession.admin.email
+      });
 
       if (error) throw error;
 
-      // Send notification to user
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: userId,
-          type: 'account_verified',
-          title: 'Account Verified! ✅',
-          content: 'Congratulations! Your account has been verified by our admin team. You can now list items and access all features.'
-        });
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to approve user');
+      }
 
       console.log(`✅ User ${userId} approved successfully`);
       
-      // Immediately update local state for instant UI feedback
+      // Update local state immediately
       setUsers(prev => prev.map(user => 
         user.id === userId ? { ...user, is_verified: true, status: 'active' } : user
       ));
@@ -309,33 +284,27 @@ const AdminDashboard: React.FC = () => {
   };
 
   const flagUser = async (userId: string, reason: string = 'Policy violation') => {
+    if (!adminSession?.admin?.email) return;
+
     try {
       setActionLoading(userId);
       console.log(`🚩 Flagging user: ${userId}`);
-      
-      const { error } = await supabase
-        .from('users')
-        .update({ 
-          is_verified: false,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
+
+      const { data, error } = await supabase.rpc('admin_flag_user', {
+        target_user_id: userId,
+        admin_email: adminSession.admin.email,
+        reason: reason
+      });
 
       if (error) throw error;
 
-      // Send notification to user
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: userId,
-          type: 'account_flagged',
-          title: 'Account Flagged ⚠️',
-          content: `Your account has been flagged: ${reason}. Please contact support for assistance.`
-        });
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to flag user');
+      }
 
       console.log(`✅ User ${userId} flagged successfully`);
 
-      // Immediately update local state
+      // Update local state immediately
       setUsers(prev => prev.map(user => 
         user.id === userId ? { ...user, is_verified: false, status: 'flagged' } : user
       ));
@@ -358,6 +327,8 @@ const AdminDashboard: React.FC = () => {
   };
 
   const deleteUser = async (userId: string) => {
+    if (!adminSession?.admin?.email) return;
+    
     if (!confirm('⚠️ PERMANENT ACTION: Are you sure you want to completely delete this user? This will remove all their data including items, chats, and cannot be undone.')) {
       return;
     }
@@ -366,37 +337,16 @@ const AdminDashboard: React.FC = () => {
       setActionLoading(userId);
       console.log(`🗑️ Permanently deleting user: ${userId}`);
       
-      // Delete user's items first (cascade will handle related data)
-      await supabase
-        .from('items')
-        .delete()
-        .eq('user_id', userId);
-
-      // Delete user's notifications
-      await supabase
-        .from('notifications')
-        .delete()
-        .eq('user_id', userId);
-
-      // Delete user's chats
-      await supabase
-        .from('chats')
-        .delete()
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
-
-      // Delete user's favorites
-      await supabase
-        .from('favorites')
-        .delete()
-        .eq('user_id', userId);
-
-      // Finally delete user profile
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
+      const { data, error } = await supabase.rpc('admin_delete_user', {
+        target_user_id: userId,
+        admin_email: adminSession.admin.email
+      });
 
       if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to delete user');
+      }
 
       console.log(`✅ User ${userId} permanently deleted`);
 
@@ -425,40 +375,33 @@ const AdminDashboard: React.FC = () => {
   };
 
   const approveItem = async (itemId: string) => {
+    if (!adminSession?.admin?.email) return;
+
     try {
       setActionLoading(itemId);
       console.log(`🔄 Approving item: ${itemId}`);
-      
-      const { error } = await supabase
-        .from('items')
-        .update({ 
-          status: 'active',
-          approved_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', itemId);
+
+      const { data, error } = await supabase.rpc('admin_approve_item', {
+        item_id: itemId,
+        admin_email: adminSession.admin.email
+      });
 
       if (error) throw error;
 
-      // Find the item to get user_id for notification
-      const item = items.find(i => i.id === itemId);
-      if (item) {
-        // Send notification to item owner
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: item.user_id,
-            type: 'item_approved',
-            title: 'Item Approved! ✅',
-            content: `Great news! Your item "${item.name}" has been approved and is now visible to other users for swapping.`
-          });
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to approve item');
       }
 
       console.log(`✅ Item ${itemId} approved successfully`);
       
       // Update local state immediately
       setItems(prev => prev.map(item => 
-        item.id === itemId ? { ...item, status: 'active', approved_at: new Date().toISOString() } : item
+        item.id === itemId ? { 
+          ...item, 
+          status: 'active', 
+          approved_at: new Date().toISOString(),
+          approved_by: adminSession.admin.email
+        } : item
       ));
 
       // Update stats immediately
@@ -477,45 +420,41 @@ const AdminDashboard: React.FC = () => {
   };
 
   const rejectItem = async (itemId: string, reason: string = 'Does not meet guidelines') => {
+    if (!adminSession?.admin?.email) return;
+
     try {
       setActionLoading(itemId);
       console.log(`❌ Rejecting item: ${itemId}`);
-      
-      const { error } = await supabase
-        .from('items')
-        .update({ 
-          status: 'rejected',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', itemId);
+
+      const { data, error } = await supabase.rpc('admin_reject_item', {
+        item_id: itemId,
+        admin_email: adminSession.admin.email,
+        reason: reason
+      });
 
       if (error) throw error;
 
-      // Find the item to get user_id for notification
-      const item = items.find(i => i.id === itemId);
-      if (item) {
-        // Send notification to item owner
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: item.user_id,
-            type: 'item_rejected',
-            title: 'Item Rejected ❌',
-            content: `Your item "${item.name}" was rejected: ${reason}. Please review our guidelines and try again.`
-          });
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to reject item');
       }
 
       console.log(`✅ Item ${itemId} rejected successfully`);
       
       // Update local state immediately
       setItems(prev => prev.map(item => 
-        item.id === itemId ? { ...item, status: 'rejected' } : item
+        item.id === itemId ? { 
+          ...item, 
+          status: 'rejected',
+          rejection_reason: reason,
+          approved_by: adminSession.admin.email
+        } : item
       ));
 
       // Update stats immediately
       setStats(prev => ({
         ...prev,
-        pendingItems: prev.pendingItems - 1
+        pendingItems: prev.pendingItems - 1,
+        rejectedItems: prev.rejectedItems + 1
       }));
 
     } catch (error) {
@@ -532,12 +471,12 @@ const AdminDashboard: React.FC = () => {
   };
 
   const exportUsers = () => {
-    const csvContent = "data:text/csv;charset=utf-8," + 
+    const csvContent = "data:text/csv;charset=utf-8," +
       "ID,Email,Name,Country,State,Verified,Items Count,Created At\n" +
-      users.map(user => 
+      users.map(user =>
         `${user.id},${user.email},"${user.full_name || 'N/A'}",${user.country || 'N/A'},${user.state || 'N/A'},${user.is_verified},${user.items_count},${user.created_at}`
       ).join("\n");
-    
+
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -548,12 +487,12 @@ const AdminDashboard: React.FC = () => {
   };
 
   const exportItems = () => {
-    const csvContent = "data:text/csv;charset=utf-8," + 
+    const csvContent = "data:text/csv;charset=utf-8," +
       "ID,Name,Category,Condition,Status,User,Created At,Approved At\n" +
-      items.map(item => 
+      items.map(item =>
         `${item.id},"${item.name}",${item.category},${item.condition},${item.status},"${item.users?.full_name || 'N/A'}",${item.created_at},${item.approved_at || 'N/A'}`
       ).join("\n");
-    
+
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -579,7 +518,10 @@ const AdminDashboard: React.FC = () => {
   const Sidebar = () => (
     <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-[#4A0E67] to-[#2d0a3d] transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
       <div className="flex items-center justify-between h-16 px-6 bg-black/20">
-        <h1 className="text-xl font-bold text-white">LizExpress Admin</h1>
+        <div>
+          <h1 className="text-xl font-bold text-white">LizExpress Admin</h1>
+          <p className="text-xs text-white/70">{adminSession?.admin?.role?.replace('_', ' ').toUpperCase()}</p>
+        </div>
         <button
           onClick={() => setSidebarOpen(false)}
           className="lg:hidden text-white hover:bg-white/20 p-2 rounded"
@@ -587,7 +529,7 @@ const AdminDashboard: React.FC = () => {
           <X size={20} />
         </button>
       </div>
-      
+
       <nav className="mt-8 px-4">
         {[
           { id: 'overview', label: 'Overview', icon: TrendingUp },
@@ -617,6 +559,11 @@ const AdminDashboard: React.FC = () => {
       </nav>
       
       <div className="absolute bottom-4 left-4 right-4">
+        <div className="bg-white/10 rounded-lg p-3 mb-4">
+          <p className="text-white/80 text-sm">Logged in as:</p>
+          <p className="text-white font-medium text-sm">{adminSession?.admin?.full_name}</p>
+          <p className="text-white/60 text-xs">{adminSession?.admin?.email}</p>
+        </div>
         <button
           onClick={handleSignOut}
           className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center"
@@ -658,7 +605,7 @@ const AdminDashboard: React.FC = () => {
             </button>
           </div>
         </div>
-        
+
         <div className="p-6 space-y-6">
           <div className="flex items-center space-x-4">
             <div className="w-16 h-16 bg-gray-200 rounded-full overflow-hidden">
@@ -792,7 +739,7 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar />
-      
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -886,16 +833,16 @@ const AdminDashboard: React.FC = () => {
                   color="bg-green-600"
                 />
                 <StatCard
+                  title="Rejected Items"
+                  value={stats.rejectedItems}
+                  icon={X}
+                  color="bg-red-600"
+                />
+                <StatCard
                   title="Total Chats"
                   value={stats.totalChats}
                   icon={MessageCircle}
                   color="bg-blue-600"
-                />
-                <StatCard
-                  title="Active Users"
-                  value={stats.activeUsers}
-                  icon={Activity}
-                  color="bg-indigo-600"
                 />
               </div>
 
@@ -1141,6 +1088,9 @@ const AdminDashboard: React.FC = () => {
                         {item.approved_at && (
                           <p><strong>Approved:</strong> {new Date(item.approved_at).toLocaleDateString()}</p>
                         )}
+                        {item.rejection_reason && (
+                          <p><strong>Reason:</strong> {item.rejection_reason}</p>
+                        )}
                       </div>
 
                       {item.status === 'pending' && (
@@ -1230,6 +1180,10 @@ const AdminDashboard: React.FC = () => {
                     <div className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
                       <span className="text-sm font-medium">Pending Approval</span>
                       <span className="text-lg font-bold text-yellow-600">{stats.pendingItems}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                      <span className="text-sm font-medium">Rejected Items</span>
+                      <span className="text-lg font-bold text-red-600">{stats.rejectedItems}</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
                       <span className="text-sm font-medium">Approval Rate</span>

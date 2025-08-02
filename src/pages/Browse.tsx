@@ -30,11 +30,11 @@ const Browse: React.FC = () => {
     // Get search params from URL
     const urlSearch = searchParams.get('search');
     const urlCategory = searchParams.get('category');
-    
+
     if (urlSearch) {
       setSearchQuery(urlSearch);
     }
-    
+
     if (urlCategory && urlCategory !== 'all') {
       setSelectedCategories([urlCategory]);
     }
@@ -65,7 +65,7 @@ const Browse: React.FC = () => {
       setError(null);
       setLoading(true);
 
-      console.log('Fetching items from database...');
+      console.log('🔍 Fetching ONLY approved items for browse...');
 
       let query = supabase
         .from('items')
@@ -73,29 +73,29 @@ const Browse: React.FC = () => {
           *,
           users!inner(id, full_name, avatar_url)
         `)
-        .eq('status', 'active'); // Only show admin-approved items
+        .eq('status', 'active'); // CRITICAL: Only show admin-approved items
 
-      console.log('Query filters applied: status = active');
+      console.log('✅ Query filter: status = active (admin approved only)');
 
       // Exclude current user's items to focus on items available for swapping
       if (user) {
         query = query.neq('user_id', user.id);
-        console.log('Excluding current user items for browse:', user.id);
+        console.log('📝 Excluding current user items for browse:', user.id);
       }
 
       if (selectedCategories.length > 0) {
         query = query.in('category', selectedCategories);
-        console.log('Category filter:', selectedCategories);
+        console.log('🏷️ Category filter:', selectedCategories);
       }
 
       if (condition) {
         query = query.eq('condition', condition);
-        console.log('Condition filter:', condition);
+        console.log('🔧 Condition filter:', condition);
       }
 
       if (searchQuery) {
         query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,swap_for.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`);
-        console.log('Search query:', searchQuery);
+        console.log('🔍 Search query:', searchQuery);
       }
 
       // Apply sorting
@@ -108,14 +108,20 @@ const Browse: React.FC = () => {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('❌ Supabase error:', error);
         throw error;
       }
 
-      console.log(`Fetched ${data?.length || 0} active items from database`);
+      console.log(`✅ Successfully fetched ${data?.length || 0} approved items`);
       
       if (data && data.length > 0) {
-        console.log('Sample item:', data[0]);
+        console.log('📊 Sample approved item:', {
+          id: data[0].id,
+          name: data[0].name,
+          status: data[0].status,
+          approved_at: data[0].approved_at,
+          user: data[0].users?.full_name
+        });
       }
 
       // Sort by location if user's location is available and sorting by nearest
@@ -130,7 +136,7 @@ const Browse: React.FC = () => {
 
       setItems(sortedData);
     } catch (err) {
-      console.error('Error fetching items:', err);
+      console.error('❌ Error fetching items:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch items. Please try again.');
     } finally {
       setLoading(false);
@@ -156,7 +162,7 @@ const Browse: React.FC = () => {
 
   const calculateDistance = (userLoc: { lat: number; lng: number }, itemLocation: string) => {
     if (!itemLocation) return Infinity;
-    
+
     const [lat, lng] = itemLocation.split(',').map(Number);
     if (!lat || !lng) return Infinity;
 
@@ -325,7 +331,7 @@ const Browse: React.FC = () => {
             <X size={24} />
           </button>
         </div>
-        
+
         <div className="hidden md:block mb-6">
           <h2 className="text-xl md:text-2xl font-bold text-white mb-4">List Your Item Here</h2>
           <button 
