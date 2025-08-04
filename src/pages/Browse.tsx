@@ -71,7 +71,7 @@ const Browse: React.FC = () => {
         .from('items')
         .select(`
           *,
-          users!inner(id, full_name, avatar_url)
+          users(id, full_name, avatar_url)
         `)
         .eq('status', 'active'); // CRITICAL: Only show admin-approved items
 
@@ -115,8 +115,8 @@ const Browse: React.FC = () => {
       let sortedData = data || [];
       if (userLocation && sortBy === 'nearest') {
         sortedData = sortedData.sort((a, b) => {
-          const distanceA = calculateDistance(userLocation, a.location);
-          const distanceB = calculateDistance(userLocation, b.location);
+          const distanceA = calculateDistance(userLocation, a.user_location || a.location);
+          const distanceB = calculateDistance(userLocation, b.user_location || b.location);
           return distanceA - distanceB;
         });
       }
@@ -147,7 +147,7 @@ const Browse: React.FC = () => {
     }
   };
 
-  const calculateDistance = (userLoc: { lat: number; lng: number }, itemLocation: string) => {
+  const calculateDistance = (userLoc: { lat: number; lng: number }, itemLocation: string | null) => {
     if (!itemLocation) return Infinity;
 
     const [lat, lng] = itemLocation.split(',').map(Number);
@@ -577,6 +577,11 @@ const Browse: React.FC = () => {
                     <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-1">
                       <strong>Looking for:</strong> {item.swap_for}
                     </p>
+                    {item.user_location && (
+                      <p className="text-xs text-gray-500 mb-2">
+                        📍 {item.user_location}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-500 mb-3">
                       By: {item.users?.full_name || 'Anonymous'}
                       <span className="ml-2">
@@ -607,35 +612,37 @@ const Browse: React.FC = () => {
                 <div className="col-span-full text-center py-12">
                   <Clock size={48} className="mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-500 text-lg mb-2">No approved items found</p>
-                  {user ? (
-                    <div>
-                      <p className="text-gray-400 mb-4">Items need admin approval before appearing here. Try adjusting your search criteria!</p>
-                      <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                        <button
-                          onClick={clearFilters}
-                          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                        >
-                          Clear Filters
-                        </button>
+                  <div>
+                    <p className="text-gray-400 mb-4">
+                      {user 
+                        ? "Items need admin approval before appearing here. Try adjusting your search criteria!" 
+                        : "No approved items match your search. Try different filters or sign in to list your own items!"
+                      }
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                      <button
+                        onClick={clearFilters}
+                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                      >
+                        Clear Filters
+                      </button>
+                      {user ? (
                         <button
                           onClick={() => navigate('/list-item')}
                           className="bg-[#F7941D] text-white px-4 py-2 rounded hover:bg-[#e68a1c]"
                         >
                           List Your Item
                         </button>
-                      </div>
+                      ) : (
+                        <button
+                          onClick={() => navigate('/signin')}
+                          className="bg-[#4A0E67] text-white px-4 py-2 rounded hover:bg-[#3a0b50]"
+                        >
+                          Sign In to List Items
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <div>
-                      <p className="text-gray-400 mb-4">Sign in to see all approved items and start swapping!</p>
-                      <button
-                        onClick={() => navigate('/signin')}
-                        className="bg-[#4A0E67] text-white px-6 py-2 rounded hover:bg-[#3a0b50]"
-                      >
-                        Sign In to Browse
-                      </button>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
             </div>

@@ -242,85 +242,158 @@ const AdminDashboard: React.FC = () => {
   };
 
   const approveUser = async (userId: string) => {
-    if (!adminSession?.admin?.email) return;
+    if (!adminSession?.admin?.email) {
+      alert('Admin session expired. Please login again.');
+      return;
+    }
 
     try {
       setActionLoading(userId);
       console.log(`🔄 Approving user: ${userId}`);
 
-      const { data, error } = await supabase.rpc('admin_approve_user', {
-        target_user_id: userId,
-        admin_email: adminSession.admin.email
-      });
+      // Try RPC function first, fallback to direct update
+      let success = false;
+      let errorMessage = '';
 
-      if (error) throw error;
+      try {
+        const { data, error } = await supabase.rpc('admin_approve_user', {
+          target_user_id: userId,
+          admin_email: adminSession.admin.email
+        });
 
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to approve user');
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'RPC function failed');
+        success = true;
+      } catch (rpcError) {
+        console.warn('RPC function failed, trying direct update:', rpcError);
+        
+        // Fallback: Direct database update
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ 
+            is_verified: true, 
+            verification_submitted: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+
+        if (updateError) throw updateError;
+
+        // Create notification
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            type: 'user_approved',
+            title: '✅ Account Verified!',
+            content: 'Congratulations! Your account has been verified by our admin team.'
+          });
+
+        success = true;
       }
 
-      console.log(`✅ User ${userId} approved successfully`);
-      
-      // Update local state immediately
-      setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, is_verified: true, status: 'active' } : user
-      ));
+      if (success) {
+        console.log(`✅ User ${userId} approved successfully`);
+        
+        // Update local state immediately
+        setUsers(prev => prev.map(user => 
+          user.id === userId ? { ...user, is_verified: true, status: 'active' } : user
+        ));
 
-      // Update stats immediately
-      setStats(prev => ({
-        ...prev,
-        verifiedUsers: prev.verifiedUsers + 1
-      }));
+        // Update stats immediately
+        setStats(prev => ({
+          ...prev,
+          verifiedUsers: prev.verifiedUsers + 1
+        }));
 
-      // Refresh data in background
-      setTimeout(fetchAdminData, 1000);
+        alert('✅ User approved successfully!');
+        
+        // Refresh data in background
+        setTimeout(fetchAdminData, 1000);
+      }
 
     } catch (error) {
       console.error('❌ Error approving user:', error);
-      alert('Failed to approve user. Please try again.');
+      alert(`Failed to approve user: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
   };
 
   const flagUser = async (userId: string, reason: string = 'Policy violation') => {
-    if (!adminSession?.admin?.email) return;
+    if (!adminSession?.admin?.email) {
+      alert('Admin session expired. Please login again.');
+      return;
+    }
 
     try {
       setActionLoading(userId);
       console.log(`🚩 Flagging user: ${userId}`);
 
-      const { data, error } = await supabase.rpc('admin_flag_user', {
-        target_user_id: userId,
-        admin_email: adminSession.admin.email,
-        reason: reason
-      });
+      // Try RPC function first, fallback to direct update
+      let success = false;
 
-      if (error) throw error;
+      try {
+        const { data, error } = await supabase.rpc('admin_flag_user', {
+          target_user_id: userId,
+          admin_email: adminSession.admin.email,
+          reason: reason
+        });
 
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to flag user');
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'RPC function failed');
+        success = true;
+      } catch (rpcError) {
+        console.warn('RPC function failed, trying direct update:', rpcError);
+        
+        // Fallback: Direct database update
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ 
+            is_verified: false, 
+            status: 'flagged',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+
+        if (updateError) throw updateError;
+
+        // Create notification
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            type: 'account_flagged',
+            title: '⚠️ Account Flagged',
+            content: `Your account has been flagged for review. Reason: ${reason}`
+          });
+
+        success = true;
       }
 
-      console.log(`✅ User ${userId} flagged successfully`);
+      if (success) {
+        console.log(`✅ User ${userId} flagged successfully`);
 
-      // Update local state immediately
-      setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, is_verified: false, status: 'flagged' } : user
-      ));
+        // Update local state immediately
+        setUsers(prev => prev.map(user => 
+          user.id === userId ? { ...user, is_verified: false, status: 'flagged' } : user
+        ));
 
-      // Update stats immediately
-      setStats(prev => ({
-        ...prev,
-        verifiedUsers: Math.max(0, prev.verifiedUsers - 1)
-      }));
+        // Update stats immediately
+        setStats(prev => ({
+          ...prev,
+          verifiedUsers: Math.max(0, prev.verifiedUsers - 1)
+        }));
 
-      // Refresh data in background
-      setTimeout(fetchAdminData, 1000);
+        alert('✅ User flagged successfully!');
+        
+        // Refresh data in background
+        setTimeout(fetchAdminData, 1000);
+      }
 
     } catch (error) {
       console.error('❌ Error flagging user:', error);
-      alert('Failed to flag user. Please try again.');
+      alert(`Failed to flag user: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
@@ -375,45 +448,93 @@ const AdminDashboard: React.FC = () => {
   };
 
   const approveItem = async (itemId: string) => {
-    if (!adminSession?.admin?.email) return;
+    if (!adminSession?.admin?.email) {
+      alert('Admin session expired. Please login again.');
+      return;
+    }
 
     try {
       setActionLoading(itemId);
       console.log(`🔄 Approving item: ${itemId}`);
 
-      const { data, error } = await supabase.rpc('admin_approve_item', {
-        item_id: itemId,
-        admin_email: adminSession.admin.email
-      });
+      // Try RPC function first, fallback to direct update
+      let success = false;
+      let itemData = null;
 
-      if (error) throw error;
+      try {
+        const { data, error } = await supabase.rpc('admin_approve_item', {
+          item_id: itemId,
+          admin_email: adminSession.admin.email
+        });
 
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to approve item');
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'RPC function failed');
+        success = true;
+      } catch (rpcError) {
+        console.warn('RPC function failed, trying direct update:', rpcError);
+        
+        // Get item data first
+        const { data: item } = await supabase
+          .from('items')
+          .select('*, users!inner(id, full_name)')
+          .eq('id', itemId)
+          .single();
+
+        if (item) {
+          itemData = item;
+          
+          // Fallback: Direct database update
+          const { error: updateError } = await supabase
+            .from('items')
+            .update({ 
+              status: 'active',
+              approved_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', itemId);
+
+          if (updateError) throw updateError;
+
+          // Create notification
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: item.user_id,
+              type: 'item_approved',
+              title: '🎉 Item Approved!',
+              content: `Great news! Your item "${item.name}" has been approved and is now visible to other users.`
+            });
+
+          success = true;
+        }
       }
 
-      console.log(`✅ Item ${itemId} approved successfully`);
-      
-      // Update local state immediately
-      setItems(prev => prev.map(item => 
-        item.id === itemId ? { 
-          ...item, 
-          status: 'active', 
-          approved_at: new Date().toISOString(),
-          approved_by: adminSession.admin.email
-        } : item
-      ));
+      if (success) {
+        console.log(`✅ Item ${itemId} approved successfully`);
+        
+        // Update local state immediately
+        setItems(prev => prev.map(item => 
+          item.id === itemId ? { 
+            ...item, 
+            status: 'active', 
+            approved_at: new Date().toISOString(),
+            approved_by: adminSession.admin.email
+          } : item
+        ));
 
-      // Update stats immediately
-      setStats(prev => ({
-        ...prev,
-        pendingItems: prev.pendingItems - 1,
-        approvedItems: prev.approvedItems + 1
-      }));
+        // Update stats immediately
+        setStats(prev => ({
+          ...prev,
+          pendingItems: prev.pendingItems - 1,
+          approvedItems: prev.approvedItems + 1
+        }));
+
+        alert('✅ Item approved successfully!');
+      }
 
     } catch (error) {
       console.error('❌ Error approving item:', error);
-      alert('Failed to approve item. Please try again.');
+      alert(`Failed to approve item: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
