@@ -77,12 +77,9 @@ const Browse: React.FC = () => {
 
       console.log('✅ Query filter: status = active (admin approved only)');
 
-      // Exclude current user's items to focus on items available for swapping
-      if (user) {
-        query = query.neq('user_id', user.id);
-        console.log('📝 Excluding current user items:', user.id);
-      }
-
+      // REMOVED: The code that was excluding current user's items
+      // This was causing items to disappear after user signs in
+      
       if (selectedCategories.length > 0) {
         query = query.in('category', selectedCategories);
       }
