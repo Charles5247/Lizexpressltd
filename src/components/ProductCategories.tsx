@@ -38,10 +38,8 @@ const ProductCategories: React.FC = () => {
         .order('created_at', { ascending: false })
         .limit(15); // Get more items for better variety
 
-      // Exclude current user's items from the homepage to show items available for swapping
-      if (user) {
-        query = query.neq('user_id', user.id);
-      }
+      // REMOVED: The code that was excluding current user's items
+      // This was causing items to disappear after user signs in
 
       const { data, error } = await query;
 
