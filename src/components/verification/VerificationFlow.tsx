@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, X, CheckCircle, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -26,6 +26,14 @@ const VerificationFlow: React.FC<VerificationFlowProps> = ({ onComplete, onSkip 
     selfie: ''
   });
 
+  // Camera refs / state for selfie step
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   const steps = [
     { id: 1, title: 'Proof of Identity', type: 'identity', color: '#4A0E67' },
     { id: 2, title: 'Proof of Address', type: 'address', color: '#F7941D' },
@@ -34,10 +42,129 @@ const VerificationFlow: React.FC<VerificationFlowProps> = ({ onComplete, onSkip 
 
   const currentStepData = steps.find(step => step.id === currentStep);
 
+  // Start camera when entering selfie step
+  useEffect(() => {
+    if (currentStepData?.type === 'selfie') {
+      startCamera().catch(err => {
+        console.error('Camera start error', err);
+        setError('Unable to access camera. Please allow camera permission or upload a selfie manually.');
+      });
+    } else {
+      stopCamera();
+    }
+
+    // stop camera on unmount
+    return () => {
+      stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStepData?.type]);
+
+  const startCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Camera API not supported');
+    }
+    // Request camera (prefer front-facing)
+    const constraints: MediaStreamConstraints = {
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    streamRef.current = stream;
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+    }
+    setIsCameraActive(true);
+    setPreviewUrl(null);
+    setError('');
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      try {
+        videoRef.current.pause();
+        // @ts-ignore
+        videoRef.current.srcObject = null;
+      } catch (e) {}
+    }
+    setIsCameraActive(false);
+    setIsCapturing(false);
+  };
+
+  const captureSelfie = async () => {
+    if (!videoRef.current || !canvasRef.current) {
+      setError('Camera not ready');
+      return;
+    }
+    setIsCapturing(true);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    // size canvas to video size
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setError('Unable to capture image');
+      setIsCapturing(false);
+      return;
+    }
+
+    // draw current frame
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // convert to blob
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        setError('Failed to capture image');
+        setIsCapturing(false);
+        return;
+      }
+
+      // Create a File object so it works with your upload flow
+      const timestamp = Date.now();
+      const fileName = `${user?.id || 'anon'}_selfie_${timestamp}.jpg`;
+      const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+      // set file to state
+      setFiles(prev => ({ ...prev, selfie: file }));
+      // create preview url
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+
+      // stop camera (optional — keep it running if you want to retake)
+      stopCamera();
+      setIsCapturing(false);
+      setError('');
+    }, 'image/jpeg', 0.9);
+  };
+
+  const handleRetake = async () => {
+    // cleanup preview
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setFiles(prev => ({ ...prev, selfie: null }));
+    try {
+      await startCamera();
+    } catch (err) {
+      console.error(err);
+      setError('Unable to restart camera');
+    }
+  };
+
   const handleFileUpload = (type: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      
+
       if (!file.type.startsWith('image/')) {
         setError('Please select an image file');
         return;
@@ -72,7 +199,7 @@ const VerificationFlow: React.FC<VerificationFlowProps> = ({ onComplete, onSkip 
           upsert: false
         });
 
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Upload timeout')), 30000)
       );
 
@@ -96,7 +223,7 @@ const VerificationFlow: React.FC<VerificationFlowProps> = ({ onComplete, onSkip 
     const currentFile = files[currentType];
 
     if (!currentFile) {
-      setError('Please upload a file to continue');
+      setError('Please upload or capture a file to continue');
       return;
     }
 
@@ -168,6 +295,11 @@ const VerificationFlow: React.FC<VerificationFlowProps> = ({ onComplete, onSkip 
   };
 
   const removeFile = (type: string) => {
+    if (type === 'selfie' && previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      stopCamera();
+    }
     setFiles(prev => ({
       ...prev,
       [type]: null
@@ -181,7 +313,7 @@ const VerificationFlow: React.FC<VerificationFlowProps> = ({ onComplete, onSkip 
       case 'address':
         return 'Upload Utility Bill or Bank Statement';
       case 'selfie':
-        return 'Upload Passport Photograph/Profile Picture';
+        return 'Take a live selfie using your camera';
       default:
         return '';
     }
@@ -207,7 +339,7 @@ const VerificationFlow: React.FC<VerificationFlowProps> = ({ onComplete, onSkip 
             <div className="flex items-center space-x-2">
               {steps.map((step, index) => (
                 <React.Fragment key={step.id}>
-                  <span 
+                  <span
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
                       step.id <= currentStep ? 'bg-[#4A0E67]' : 'bg-gray-300'
                     }`}
@@ -238,44 +370,128 @@ const VerificationFlow: React.FC<VerificationFlowProps> = ({ onComplete, onSkip 
             </p>
 
             <div className="max-w-md mx-auto">
-              <label className="cursor-pointer block">
-                <div 
-                  className="border-2 border-dashed rounded-lg p-8 hover:bg-gray-50 transition-colors"
-                  style={{ borderColor: currentStepData?.color }}
-                >
-                  {files[currentStepData?.type as keyof typeof files] ? (
+              {/* For selfie step, render camera UI */}
+              {currentStepData?.type === 'selfie' ? (
+                <div className="border-2 border-dashed rounded-lg p-4" style={{ borderColor: currentStepData.color }}>
+                  {/* show preview if captured */}
+                  {files.selfie && previewUrl ? (
                     <div className="space-y-4">
-                      <CheckCircle size={48} className="mx-auto text-green-500" />
-                      <p className="text-sm font-medium">
-                        {files[currentStepData?.type as keyof typeof files]?.name}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => removeFile(currentStepData?.type || '')}
-                        className="text-red-500 hover:text-red-700 text-sm"
-                      >
-                        Remove file
-                      </button>
+                      <img src={previewUrl} alt="Selfie preview" className="mx-auto rounded max-w-full h-auto" />
+                      <p className="text-sm font-medium">{files.selfie.name}</p>
+                      <div className="flex justify-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={handleRetake}
+                          className="px-4 py-2 border rounded"
+                        >
+                          Retake
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeFile('selfie')}
+                          className="px-4 py-2 border rounded text-red-500"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div>
-                      <Upload 
-                        className="mx-auto mb-2" 
-                        size={32} 
-                        style={{ color: currentStepData?.color }} 
-                      />
-                      <p className="text-sm text-gray-500">Click to upload or drag and drop</p>
-                      <p className="text-xs text-gray-400 mt-1">.jpg, .png (max 5MB)</p>
+                      <div className="mb-3">
+                        {/* video container */}
+                        <div className="relative w-full bg-black rounded overflow-hidden">
+                          <video
+                            ref={videoRef}
+                            className="w-full h-64 object-cover"
+                            playsInline
+                            muted
+                          />
+                          {!isCameraActive && (
+                            <div className="absolute inset-0 flex items-center justify-center text-white">
+                              <p>Camera inactive</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-center space-x-3">
+                        {!isCameraActive ? (
+                          <button
+                            type="button"
+                            onClick={() => startCamera().catch(err => setError('Unable to access camera'))}
+                            className="px-4 py-2 border rounded"
+                          >
+                            Start Camera
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={captureSelfie}
+                              disabled={isCapturing}
+                              className="px-4 py-2 bg-[#4A0E67] text-white rounded disabled:opacity-50"
+                            >
+                              {isCapturing ? 'Capturing...' : 'Capture'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={stopCamera}
+                              className="px-4 py-2 border rounded"
+                            >
+                              Stop Camera
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-gray-400 mt-2">Make sure your face is clearly visible. The captured image will be used for verification.</p>
+
+                      {/* hidden canvas used for capture */}
+                      <canvas ref={canvasRef} className="hidden" />
                     </div>
                   )}
                 </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".jpg,.png,.jpeg"
-                  onChange={(e) => handleFileUpload(currentStepData?.type || '', e)}
-                />
-              </label>
+              ) : (
+                // default file upload UI for identity/address
+                <label className="cursor-pointer block">
+                  <div
+                    className="border-2 border-dashed rounded-lg p-8 hover:bg-gray-50 transition-colors"
+                    style={{ borderColor: currentStepData?.color }}
+                  >
+                    {files[currentStepData?.type as keyof typeof files] ? (
+                      <div className="space-y-4">
+                        <CheckCircle size={48} className="mx-auto text-green-500" />
+                        <p className="text-sm font-medium">
+                          {files[currentStepData?.type as keyof typeof files]?.name}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(currentStepData?.type || '')}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          Remove file
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <Upload
+                          className="mx-auto mb-2"
+                          size={32}
+                          style={{ color: currentStepData?.color }}
+                        />
+                        <p className="text-sm text-gray-500">Click to upload or drag and drop</p>
+                        <p className="text-xs text-gray-400 mt-1">.jpg, .png (max 5MB)</p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".jpg,.png,.jpeg"
+                    onChange={(e) => handleFileUpload(currentStepData?.type || '', e)}
+                  />
+                </label>
+              )}
             </div>
           </div>
 
