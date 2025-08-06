@@ -128,11 +128,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string) => {
     try {
-      const { error, data } = await supabase.auth.signUp({ 
+      const { error, data } = await supabase.auth.signUp({
         email, 
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/email-confirmation`
+          emailRedirectTo: `${window.location.origin}/email-confirmation`,
+          data: {
+            email_confirm_redirect_url: `${window.location.origin}/email-confirmation`
+          }
         }
       });
       if (error) throw error;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import { Eye, EyeOff } from 'lucide-react'; // <-- Added icons
 
@@ -34,8 +35,28 @@ const SignUp: React.FC = () => {
     try {
       setError('');
       setLoading(true);
-      await signUp(email, password);
-      setSuccess(true);
+      
+      // Create account with better email configuration
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/email-confirmation`,
+          data: {
+            full_name: '', // Will be filled in settings
+            redirect_url: `${window.location.origin}/settings`
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.user && !data.session) {
+        setSuccess(true);
+      } else if (data.session) {
+        // User is immediately logged in, redirect to complete profile
+        navigate('/settings');
+      }
     } catch (err: any) {
       console.error(err);
       if (err.message && err.message.includes('check your email')) {

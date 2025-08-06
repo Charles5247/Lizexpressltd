@@ -300,6 +300,17 @@ const ItemDetails: React.FC = () => {
                   <p className="text-gray-600 font-medium">{item.swap_for}</p>
                 </div>
 
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center">
+                    <MapPin size={16} className="mr-1" />
+                    Location:
+                  </h2>
+                  <p className="text-gray-600">
+                    {item.item_location && `${item.item_location}, `}
+                    {item.item_state}, {item.item_country}
+                  </p>
+                </div>
+
                 <div className="flex items-center text-gray-500 text-sm">
                   <Calendar size={16} className="mr-1" />
                   Listed on {new Date(item.created_at).toLocaleDateString()}

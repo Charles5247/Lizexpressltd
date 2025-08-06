@@ -73,6 +73,8 @@ supabase.auth.getSession()
     estimated_cost: number | null;
     swap_for: string | null;
     location: string | null;
+    item_state: string | null;
+    item_country: string | null;
     images: string[];
     receipt_image: string | null;
     status: string;

@@ -203,13 +203,14 @@ const Settings: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-[#4A0E67] font-semibold mb-2">Full Name</label>
+                <label className="block text-[#4A0E67] font-semibold mb-2">Full Name *</label>
                 <input
                   type="text"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                   placeholder="Enter your full name"
+                  required
                 />
               </div>
 
@@ -224,12 +225,13 @@ const Settings: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[#4A0E67] font-semibold mb-2">Date of Birth</label>
+                <label className="block text-[#4A0E67] font-semibold mb-2">Date of Birth *</label>
                 <input
                   type="date"
                   value={formData.date_of_birth}
                   onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
+                  required
                 />
               </div>
 
@@ -276,11 +278,12 @@ const Settings: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[#4A0E67] font-semibold mb-2">Country</label>
+                <label className="block text-[#4A0E67] font-semibold mb-2">Country *</label>
                 <select
                   value={formData.country}
                   onChange={(e) => handleCountryChange(e.target.value)}
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
+                  required
                 >
                   <option value="">Select Country</option>
                   {countries.map((country) => (
@@ -292,12 +295,13 @@ const Settings: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[#4A0E67] font-semibold mb-2">State</label>
+                <label className="block text-[#4A0E67] font-semibold mb-2">State *</label>
                 <select
                   value={formData.state}
                   onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                   disabled={!formData.country}
+                  required
                 >
                   <option value="">Select State</option>
                   {availableStates.map((state) => (
@@ -339,12 +343,13 @@ const Settings: React.FC = () => {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-[#4A0E67] font-semibold mb-2">Residential Address</label>
+                <label className="block text-[#4A0E67] font-semibold mb-2">Residential Address *</label>
                 <textarea
                   value={formData.residential_address}
                   onChange={(e) => setFormData({ ...formData, residential_address: e.target.value })}
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67] h-24"
                   placeholder="Enter your full address"
+                  required
                 />
               </div>
             </div>

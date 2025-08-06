@@ -29,12 +29,12 @@ const EmailConfirmation: React.FC = () => {
 
           if (data.user) {
             setStatus('success');
-            setMessage('Email confirmed successfully! Please complete your profile to continue.');
+            setMessage('Email confirmed successfully! Please complete your profile to start listing items.');
             
-            // Redirect to settings to complete profile after 3 seconds
+            // Redirect to settings to complete profile after 2 seconds
             setTimeout(() => {
               navigate('/settings');
-            }, 3000);
+            }, 2000);
           }
         } else {
           throw new Error('Invalid confirmation link');
