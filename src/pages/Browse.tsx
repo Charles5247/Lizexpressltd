@@ -30,11 +30,11 @@ const Browse: React.FC = () => {
     // Get search params from URL
     const urlSearch = searchParams.get('search');
     const urlCategory = searchParams.get('category');
-    
+
     if (urlSearch) {
       setSearchQuery(urlSearch);
     }
-    
+
     if (urlCategory && urlCategory !== 'all') {
       setSelectedCategories([urlCategory]);
     }
@@ -65,37 +65,31 @@ const Browse: React.FC = () => {
       setError(null);
       setLoading(true);
 
-      console.log('Fetching items from database...');
+      console.log('🔍 Fetching ALL approved items for public browse...');
 
       let query = supabase
         .from('items')
         .select(`
           *,
-          users!inner(id, full_name, avatar_url)
+          users(id, full_name, avatar_url)
         `)
-        .eq('status', 'active'); // Only show admin-approved items
+        .eq('status', 'active'); // CRITICAL: Only show admin-approved items
 
-      console.log('Query filters applied: status = active');
-
-      // Exclude current user's items to focus on items available for swapping
-      if (user) {
-        query = query.neq('user_id', user.id);
-        console.log('Excluding current user items for browse:', user.id);
-      }
+      console.log('✅ Query filter: status = active (admin approved only) - PUBLIC ACCESS');
+      
+      // DON'T exclude current user's items for browse - show ALL approved items
+      // Users should see all available items in the marketplace
 
       if (selectedCategories.length > 0) {
         query = query.in('category', selectedCategories);
-        console.log('Category filter:', selectedCategories);
       }
 
       if (condition) {
         query = query.eq('condition', condition);
-        console.log('Condition filter:', condition);
       }
 
       if (searchQuery) {
         query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,swap_for.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`);
-        console.log('Search query:', searchQuery);
       }
 
       // Apply sorting
@@ -108,29 +102,25 @@ const Browse: React.FC = () => {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('❌ Error fetching items:', error);
         throw error;
       }
 
-      console.log(`Fetched ${data?.length || 0} active items from database`);
-      
-      if (data && data.length > 0) {
-        console.log('Sample item:', data[0]);
-      }
+      console.log(`✅ Successfully fetched ${data?.length || 0} approved items`);
 
       // Sort by location if user's location is available and sorting by nearest
       let sortedData = data || [];
       if (userLocation && sortBy === 'nearest') {
         sortedData = sortedData.sort((a, b) => {
-          const distanceA = calculateDistance(userLocation, a.location);
-          const distanceB = calculateDistance(userLocation, b.location);
+          const distanceA = calculateDistance(userLocation, a.user_location || a.location);
+          const distanceB = calculateDistance(userLocation, b.user_location || b.location);
           return distanceA - distanceB;
         });
       }
 
       setItems(sortedData);
     } catch (err) {
-      console.error('Error fetching items:', err);
+      console.error('❌ Browse error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch items. Please try again.');
     } finally {
       setLoading(false);
@@ -154,9 +144,9 @@ const Browse: React.FC = () => {
     }
   };
 
-  const calculateDistance = (userLoc: { lat: number; lng: number }, itemLocation: string) => {
+  const calculateDistance = (userLoc: { lat: number; lng: number }, itemLocation: string | null) => {
     if (!itemLocation) return Infinity;
-    
+
     const [lat, lng] = itemLocation.split(',').map(Number);
     if (!lat || !lng) return Infinity;
 
@@ -325,7 +315,7 @@ const Browse: React.FC = () => {
             <X size={24} />
           </button>
         </div>
-        
+
         <div className="hidden md:block mb-6">
           <h2 className="text-xl md:text-2xl font-bold text-white mb-4">List Your Item Here</h2>
           <button 
@@ -584,7 +574,7 @@ const Browse: React.FC = () => {
                     <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-1">
                       <strong>Looking for:</strong> {item.swap_for}
                     </p>
-                    <p className="text-xs text-gray-500 mb-1">
+                    <p className="text-xs text-gray-500 mb-2">
                       📍 {item.item_location ? `${item.item_location}, ` : ''}{item.item_state}, {item.item_country}
                     </p>
                     <p className="text-xs text-gray-500 mb-3">
@@ -617,35 +607,37 @@ const Browse: React.FC = () => {
                 <div className="col-span-full text-center py-12">
                   <Clock size={48} className="mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-500 text-lg mb-2">No approved items found</p>
-                  {user ? (
-                    <div>
-                      <p className="text-gray-400 mb-4">Items need admin approval before appearing here. Try adjusting your search criteria!</p>
-                      <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                        <button
-                          onClick={clearFilters}
-                          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                        >
-                          Clear Filters
-                        </button>
+                  <div>
+                    <p className="text-gray-400 mb-4">
+                      {user 
+                        ? "Items need admin approval before appearing here. Try adjusting your search criteria!" 
+                        : "No approved items match your search. Try different filters or sign in to list your own items!"
+                      }
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                      <button
+                        onClick={clearFilters}
+                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                      >
+                        Clear Filters
+                      </button>
+                      {user ? (
                         <button
                           onClick={() => navigate('/list-item')}
                           className="bg-[#F7941D] text-white px-4 py-2 rounded hover:bg-[#e68a1c]"
                         >
                           List Your Item
                         </button>
-                      </div>
+                      ) : (
+                        <button
+                          onClick={() => navigate('/signin')}
+                          className="bg-[#4A0E67] text-white px-4 py-2 rounded hover:bg-[#3a0b50]"
+                        >
+                          Sign In to List Items
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <div>
-                      <p className="text-gray-400 mb-4">Sign in to see all approved items and start swapping!</p>
-                      <button
-                        onClick={() => navigate('/signin')}
-                        className="bg-[#4A0E67] text-white px-6 py-2 rounded hover:bg-[#3a0b50]"
-                      >
-                        Sign In to Browse
-                      </button>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
             </div>
