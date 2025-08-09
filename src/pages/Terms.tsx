@@ -106,7 +106,7 @@ const Terms: React.FC = () => {
               </ul>
               <p><strong>Contact:</strong><br />
                 Email – <a href="mailto:support@lizexpressltd.com" className="text-[#4A0E67] underline">support@lizexpressltd.com</a><br />
-                Phone – [Insert Number]
+                Phone – +234 904 8304 531
               </p>
             </div>
           </section>
