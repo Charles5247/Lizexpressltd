@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, User, MapPin, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import VerificationFlow from '../verification/VerificationFlow';
 import { useVerificationStatus } from '../../hooks/useVerificationStatus';
 import LoadingSpinner from '../ui/LoadingSpinner';
+import { countries, getStatesForCountry } from '../../data/locationData';
 
 const ItemListing: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { needsVerification, loading: verificationLoading } = useVerificationStatus();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,6 +23,9 @@ const ItemListing: React.FC = () => {
     category: '',
     swapFor: '',
     description: '',
+    itemLocation: '',
+    itemState: '',
+    itemCountry: 'Nigeria', // Default to Nigeria
     receipt: null as File | null,
     images: [] as File[]
   });
@@ -30,6 +34,8 @@ const ItemListing: React.FC = () => {
     'Electronics', 'Furniture', 'Computer', 'Phones', 'Clothing',
     'Cosmetics', 'Automobiles', 'Shoes', 'Jewelry', 'Real Estate', 'Others'
   ];
+
+  const availableStates = getStatesForCountry(formData.itemCountry);
 
   // Show verification flow if needed
   if (verificationLoading) {
@@ -48,6 +54,64 @@ const ItemListing: React.FC = () => {
       />
     );
   }
+
+  // Check if profile is completed
+  const isProfileComplete = profile && 
+    profile.full_name && 
+    profile.residential_address && 
+    profile.date_of_birth && 
+    profile.country && 
+    profile.state;
+
+  if (!isProfileComplete) {
+    return (
+      <div className="min-h-screen bg-[#4A0E67] py-8 px-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-lg shadow-xl p-8 text-center">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <User className="w-8 h-8 text-yellow-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">Complete Your Profile First</h2>
+            <p className="text-gray-600 mb-6">
+              Before you can list items, please complete your profile with all required information.
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h3 className="font-semibold text-blue-800 mb-2">Required Information:</h3>
+              <ul className="text-sm text-blue-700 text-left space-y-1">
+                <li>• Full Name {!profile?.full_name && <span className="text-red-500">✗</span>}</li>
+                <li>• Residential Address {!profile?.residential_address && <span className="text-red-500">✗</span>}</li>
+                <li>• Date of Birth {!profile?.date_of_birth && <span className="text-red-500">✗</span>}</li>
+                <li>• Country {!profile?.country && <span className="text-red-500">✗</span>}</li>
+                <li>• State {!profile?.state && <span className="text-red-500">✗</span>}</li>
+              </ul>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate('/settings')}
+                className="w-full bg-[#4A0E67] text-white py-3 px-6 rounded-lg font-bold hover:bg-[#3a0b50] transition-colors"
+              >
+                Complete Profile Now
+              </button>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="w-full bg-gray-100 text-gray-700 py-3 px-6 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const handleCountryChange = (country: string) => {
+    setFormData({ 
+      ...formData, 
+      itemCountry: country, 
+      itemState: '' // Reset state when country changes
+    });
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -117,6 +181,11 @@ const ItemListing: React.FC = () => {
       return;
     }
 
+    if (!formData.itemLocation || !formData.itemState || !formData.itemCountry) {
+      setError('Please fill in all location fields');
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
@@ -136,7 +205,7 @@ const ItemListing: React.FC = () => {
         console.error('Profile upsert error:', profileError);
       }
 
-      // Get user location
+      // Get user location coordinates (optional)
       const userLocation = localStorage.getItem('userLocation');
       let location = '';
       if (userLocation) {
@@ -172,7 +241,10 @@ const ItemListing: React.FC = () => {
         buying_price: formData.buyingPrice ? parseFloat(formData.buyingPrice) : null,
         estimated_cost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : null,
         swap_for: formData.swapFor,
-        location: location,
+        location: location, // GPS coordinates
+        item_location: formData.itemLocation, // Specific area
+        item_state: formData.itemState, // State
+        item_country: formData.itemCountry, // Country
         images: imageUrls,
         receipt_image: receiptUrl,
         status: 'pending' // Always start as pending for admin approval
@@ -221,7 +293,15 @@ const ItemListing: React.FC = () => {
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow-xl p-8">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-4xl font-bold text-[#4A0E67]">Item Listing</h1>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate(-1)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <ArrowLeft size={24} className="text-[#4A0E67]" />
+              </button>
+              <h1 className="text-4xl font-bold text-[#4A0E67]">List Your Item</h1>
+            </div>
             <div className="flex items-center space-x-2">
               <span className="w-8 h-8 rounded-full bg-[#4A0E67] text-white flex items-center justify-center">1</span>
               <span className="w-8 border-t-2 border-gray-300"></span>
@@ -245,31 +325,48 @@ const ItemListing: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="col-span-1">
-                <label className="block text-[#4A0E67] mb-2">Item Name *</label>
+            {/* Basic Item Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-[#4A0E67] font-semibold mb-2">Item Name *</label>
                 <input
                   type="text"
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                   value={formData.itemName}
                   onChange={(e) => setFormData({ ...formData, itemName: e.target.value })}
+                  placeholder="Enter item name"
                   required
                 />
               </div>
+
               <div>
-                <label className="block text-[#4A0E67] mb-2">Estimated Cost Value (₦) *</label>
+                <label className="block text-[#4A0E67] font-semibold mb-2">Estimated Cost Value (₦) *</label>
                 <input
                   type="number"
                   className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                   value={formData.estimatedCost}
                   onChange={(e) => setFormData({ ...formData, estimatedCost: e.target.value })}
+                  placeholder="Enter estimated value"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#4A0E67] font-semibold mb-2">What to Swap For *</label>
+                <input
+                  type="text"
+                  className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
+                  value={formData.swapFor}
+                  onChange={(e) => setFormData({ ...formData, swapFor: e.target.value })}
+                  placeholder="What would you like in exchange?"
                   required
                 />
               </div>
             </div>
 
+            {/* Item Condition */}
             <div>
-              <label className="block text-[#4A0E67] mb-2">Item Condition *</label>
+              <label className="block text-[#4A0E67] font-semibold mb-2">Item Condition *</label>
               <div className="flex space-x-4">
                 {['Brand New', 'Fairly Used'].map((condition) => (
                   <label key={condition} className="flex items-center">
@@ -282,14 +379,15 @@ const ItemListing: React.FC = () => {
                       className="mr-2"
                       required
                     />
-                    {condition}
+                    <span className="text-gray-700">{condition}</span>
                   </label>
                 ))}
               </div>
             </div>
 
+            {/* Item Category */}
             <div>
-              <label className="block text-[#4A0E67] mb-2">Item Category *</label>
+              <label className="block text-[#4A0E67] font-semibold mb-2">Item Category *</label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {categories.map((category) => (
                   <label key={category} className="flex items-center">
@@ -302,35 +400,87 @@ const ItemListing: React.FC = () => {
                       className="mr-2"
                       required
                     />
-                    {category}
+                    <span className="text-gray-700 text-sm">{category}</span>
                   </label>
                 ))}
               </div>
             </div>
 
-            <div>
-              <label className="block text-[#4A0E67] mb-2">Swap For *</label>
-              <input
-                type="text"
-                className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
-                value={formData.swapFor}
-                onChange={(e) => setFormData({ ...formData, swapFor: e.target.value })}
-                placeholder="What would you like to swap this item for?"
-                required
-              />
+            {/* Item Location Section */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h3 className="text-[#4A0E67] font-semibold mb-4 flex items-center">
+                <MapPin size={20} className="mr-2" />
+                Item Location *
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[#4A0E67] font-semibold mb-2">Country *</label>
+                  <select
+                    value={formData.itemCountry}
+                    onChange={(e) => handleCountryChange(e.target.value)}
+                    className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
+                    required
+                  >
+                    <option value="">Select Country</option>
+                    {countries.map((country) => (
+                      <option key={country.code} value={country.name}>
+                        {country.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#4A0E67] font-semibold mb-2">State *</label>
+                  <select
+                    value={formData.itemState}
+                    onChange={(e) => setFormData({ ...formData, itemState: e.target.value })}
+                    className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
+                    disabled={!formData.itemCountry}
+                    required
+                  >
+                    <option value="">Select State</option>
+                    {availableStates.map((state) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
+                  </select>
+                  {!formData.itemCountry && (
+                    <p className="text-sm text-gray-500 mt-1">Please select a country first</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[#4A0E67] font-semibold mb-2">Specific Location *</label>
+                  <input
+                    type="text"
+                    className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
+                    value={formData.itemLocation}
+                    onChange={(e) => setFormData({ ...formData, itemLocation: e.target.value })}
+                    placeholder="e.g., Ikeja, Victoria Island, Wuse 2"
+                    required
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                📍 This location will be displayed to potential swappers to help them find your item.
+              </p>
             </div>
 
+            {/* Item Description */}
             <div>
-              <label className="block text-[#4A0E67] mb-2">Item Description *</label>
+              <label className="block text-[#4A0E67] font-semibold mb-2">Item Description *</label>
               <textarea
                 className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67] h-32"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Enter the details of your items here..."
+                placeholder="Describe your item in detail - condition, features, why you're swapping it..."
                 required
               />
             </div>
 
+            {/* File Uploads */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
                 <h3 className="text-[#F7941D] font-semibold mb-4">Item Receipt (Optional)</h3>
