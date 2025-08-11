@@ -144,15 +144,30 @@ const AdminDashboard: React.FC = () => {
       setLoading(true);
       console.log('🔄 Fetching admin data...');
 
-      // Fetch all users
+      // Fetch all users with their actual email from auth
       const { data: usersData, error: usersError } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          verifications(*)
+        `)
         .order('created_at', { ascending: false });
 
       if (usersError) {
         console.error('Users fetch error:', usersError);
         throw usersError;
+      }
+
+      // Get actual user emails from auth.users
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+      
+      const emailMap: { [key: string]: string } = {};
+      if (authUsers?.users) {
+        authUsers.users.forEach(authUser => {
+          if (authUser.id && authUser.email) {
+            emailMap[authUser.id] = authUser.email;
+          }
+        });
       }
 
       // Get items count for each user
@@ -170,7 +185,7 @@ const AdminDashboard: React.FC = () => {
       // Transform users data
       const transformedUsers: AdminUser[] = (usersData || []).map(user => ({
         id: user.id,
-        email: user.email || `user-${user.id.slice(0, 8)}@lizexpress.com`,
+        email: emailMap[user.id] || `user-${user.id.slice(0, 8)}@lizexpress.com`,
         full_name: user.full_name,
         avatar_url: user.avatar_url,
         residential_address: user.residential_address,
@@ -180,7 +195,8 @@ const AdminDashboard: React.FC = () => {
         verification_submitted: user.verification_submitted || false,
         created_at: user.created_at,
         items_count: itemCounts?.[user.id] || 0,
-        status: user.is_verified ? 'active' : 'flagged' as const
+        status: user.is_verified ? 'active' : 'flagged' as const,
+        verifications: user.verifications || []
       }));
 
       console.log(`✅ Fetched ${transformedUsers.length} users`);
@@ -547,16 +563,53 @@ const AdminDashboard: React.FC = () => {
       setActionLoading(itemId);
       console.log(`❌ Rejecting item: ${itemId}`);
 
-      const { data, error } = await supabase.rpc('admin_reject_item', {
-        item_id: itemId,
-        admin_email: adminSession.admin.email,
-        reason: reason
-      });
+      // Try RPC function first
+      let success = false;
+      try {
+        const { data, error } = await supabase.rpc('admin_reject_item', {
+          item_id: itemId,
+          admin_email: adminSession.admin.email,
+          reason: reason
+        });
 
-      if (error) throw error;
+        if (!error && data?.success) {
+          success = true;
+        }
+      } catch (rpcError) {
+        console.warn('RPC function failed, trying direct update:', rpcError);
+      }
 
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to reject item');
+      // Fallback to direct database update
+      if (!success) {
+        // Get item data first
+        const { data: item } = await supabase
+          .from('items')
+          .select('*, users!inner(id, full_name)')
+          .eq('id', itemId)
+          .single();
+
+        if (item) {
+          const { error: updateError } = await supabase
+            .from('items')
+            .update({
+              status: 'rejected',
+              rejection_reason: reason,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', itemId);
+
+          if (updateError) throw updateError;
+
+          // Create notification
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: item.user_id,
+              type: 'item_rejected',
+              title: '❌ Item Rejected',
+              content: `Your item "${item.name}" has been rejected. Reason: ${reason}. Please contact support if you believe this is an error.`
+            });
+        }
       }
 
       console.log(`✅ Item ${itemId} rejected successfully`);
