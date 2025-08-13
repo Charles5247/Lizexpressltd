@@ -84,7 +84,7 @@ function AppContent() {
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/items/:id" element={<ItemDetails />} />
                 <Route path="/email-confirmation" element={<EmailConfirmation />} />
-                <Route path="/admin/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 
                 {/* Protected Routes */}
                 <Route path="/settings" element={

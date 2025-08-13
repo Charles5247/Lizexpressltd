@@ -18,19 +18,19 @@ const ResetPassword: React.FC = () => {
   useEffect(() => {
     // Check if we have the reset token in the URL
     const hashParams = new URLSearchParams(location.hash.substring(1));
-    const urlParams = new URLSearchParams(location.search);
     const accessToken = hashParams.get('access_token');
-    const type = hashParams.get('type') || urlParams.get('type');
+    const refreshToken = hashParams.get('refresh_token');
+    const type = hashParams.get('type');
 
     console.log('Reset password params:', { type, hasToken: !!accessToken });
 
-    if (type === 'recovery' && accessToken) {
+    if (type === 'recovery' && accessToken && refreshToken) {
       setValidToken(true);
       
       // Set the session for password update
       supabase.auth.setSession({
         access_token: accessToken,
-        refresh_token: hashParams.get('refresh_token') || ''
+        refresh_token: refreshToken
       }).then(({ error }) => {
         if (error) {
           console.error('Session error:', error);
@@ -91,7 +91,7 @@ const ResetPassword: React.FC = () => {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">Password Updated!</h2>
+          <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">🎉 Password Updated Successfully!</h2>
           <p className="text-gray-600 mb-6">
             Your password has been successfully updated. You will be redirected to the sign in page.
           </p>

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
 import LoadingSpinner from '../ui/LoadingSpinner';
-import { Eye, EyeOff } from 'lucide-react'; // <-- Added icons
+import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
 const SignUp: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -36,34 +35,11 @@ const SignUp: React.FC = () => {
       setError('');
       setLoading(true);
       
-      // Create account with better email configuration
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/email-confirmation`,
-          data: {
-            full_name: '', // Will be filled in settings
-            redirect_url: `${window.location.origin}/settings`
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.user && !data.session) {
-        setSuccess(true);
-      } else if (data.session) {
-        // User is immediately logged in, redirect to complete profile
-        navigate('/settings');
-      }
+      await signUp(email, password);
+      setSuccess(true);
     } catch (err: any) {
       console.error(err);
-      if (err.message && err.message.includes('check your email')) {
-        setSuccess(true);
-      } else {
-        setError(err.message || 'Failed to create an account');
-      }
+      setError(err.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -81,11 +57,23 @@ const SignUp: React.FC = () => {
           <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">Check Your Email!</h2>
           <p className="text-gray-600 mb-6">
             We've sent a confirmation link to <strong>{email}</strong>. 
-            Please click the link in your email to activate your account and complete your registration.
+            Please click the link in your email to activate your account.
           </p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-center mb-2">
+              <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
+              <p className="text-sm font-semibold text-red-800">⚠️ IMPORTANT: Check Your Spam Folder!</p>
+            </div>
+            <p className="text-sm text-red-700">
+              <strong>The verification email might be in your SPAM/JUNK folder!</strong><br/>
+              1. Check your spam folder<br/>
+              2. Mark the email as "Not Spam"<br/>
+              3. Add lizexpressltd.com to your trusted senders
+            </p>
+          </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-blue-800">
-              <strong>Important:</strong> After clicking the verification link, you'll be redirected to LizExpress where you can sign in with your credentials.
+              <strong>Next Step:</strong> After clicking the verification link, you'll need to complete your profile before you can start listing items.
             </p>
           </div>
           <div className="space-y-3">
