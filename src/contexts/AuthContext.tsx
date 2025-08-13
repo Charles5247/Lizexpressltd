@@ -10,6 +10,7 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -132,16 +133,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email, 
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/email-confirmation`,
+          emailRedirectTo: `${window.location.origin}/email-confirmation?confirmed=true`,
           data: {
-            email_confirm_redirect_url: `${window.location.origin}/email-confirmation`
+            email_confirm_redirect_url: `${window.location.origin}/email-confirmation?confirmed=true`,
+            site_url: window.location.origin
           }
         }
       });
       if (error) throw error;
 
       if (data.user && !data.session) {
-        throw new Error('Please check your email for a confirmation link before signing in.');
+        // Don't throw error, just return success for email confirmation flow
+        return;
       }
     } catch (error) {
       console.error('Error signing up:', error);
@@ -194,7 +197,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signIn,
       signUp,
       signOut,
-      updateProfile
+      updateProfile,
+      refreshProfile: () => fetchProfile(user?.id || '')
     }}>
       {children}
     </AuthContext.Provider>
