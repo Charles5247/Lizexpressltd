@@ -5,7 +5,8 @@ import {
   Search, Filter, Download, RefreshCw, Menu, ChevronLeft,
   UserCheck, UserX, Flag, Trash2, Mail, MapPin, Calendar,
   Phone, Home, Globe, AlertTriangle, Shield, LogOut,
-  BarChart3, Activity, MessageCircle, Bell
+  BarChart3, Activity, MessageCircle, Bell, FileText,
+  ExternalLink, Image, CheckCircle, XCircle, Clock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -23,6 +24,31 @@ interface AdminUser {
   last_sign_in_at?: string;
   items_count: number;
   status: 'active' | 'flagged' | 'suspended';
+  verifications?: any[];
+}
+
+interface VerificationDocument {
+  id: string;
+  document_type: string;
+  document_url: string;
+  document_name: string;
+  file_size: number;
+  status: 'pending' | 'approved' | 'rejected';
+  review_notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface UserVerificationData {
+  user: {
+    id: string;
+    full_name: string;
+    email: string;
+    is_verified: boolean;
+    verification_submitted: boolean;
+    created_at: string;
+  };
+  documents: VerificationDocument[];
 }
 
 interface AdminStats {
@@ -37,6 +63,7 @@ interface AdminStats {
   newItemsToday: number;
   totalChats: number;
   activeUsers: number;
+  pendingVerifications: number;
 }
 
 interface Item {
@@ -71,8 +98,9 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [verificationData, setVerificationData] = useState<UserVerificationData | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [adminSession, setAdminSession] = useState<any>(null);
+  const [currentAdmin, setCurrentAdmin] = useState<any>(null);
 
   // Data states
   const [stats, setStats] = useState<AdminStats>({
@@ -86,88 +114,125 @@ const AdminDashboard: React.FC = () => {
     newUsersToday: 0,
     newItemsToday: 0,
     totalChats: 0,
-    activeUsers: 0
+    activeUsers: 0,
+    pendingVerifications: 0
   });
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [items, setItems] = useState<Item[]>([]);
 
   useEffect(() => {
-    // Check admin authentication
-    const sessionData = localStorage.getItem('adminSession');
-    if (!sessionData) {
+    checkAdminAuth();
+  }, [navigate]);
+
+  const checkAdminAuth = async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.log('No valid session found');
+        navigate('/admin');
+        return;
+      }
+
+      // Verify user is an admin
+      const { data: adminData, error: adminError } = await supabase
+        .from('admin_users')
+        .select('*')
+        .eq('email', session.user.email)
+        .eq('is_active', true)
+        .single();
+
+      if (adminError || !adminData) {
+        console.log('User is not an admin:', adminError);
+        await supabase.auth.signOut();
+        navigate('/admin');
+        return;
+      }
+
+      setCurrentAdmin(adminData);
+      await fetchAdminData();
+      setupRealTimeSubscriptions();
+
+    } catch (error) {
+      console.error('Auth check error:', error);
       navigate('/admin');
-      return;
     }
+  };
 
-    const session = JSON.parse(sessionData);
-    if (!session.authenticated) {
-      navigate('/admin');
-      return;
-    }
+  const setupRealTimeSubscriptions = () => {
+    console.log('🔄 Setting up real-time subscriptions...');
 
-    setAdminSession(session);
-    fetchAdminData();
-
-    // Set up real-time subscriptions
+    // Users subscription
     const userSubscription = supabase
       .channel('admin-users-realtime')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'users'
-      }, () => {
-        console.log('User data changed, refreshing...');
+      }, (payload) => {
+        console.log('👥 User data changed:', payload.eventType);
         fetchAdminData();
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('👥 Users subscription status:', status);
+      });
 
+    // Items subscription
     const itemSubscription = supabase
       .channel('admin-items-realtime')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'items'
-      }, () => {
-        console.log('Item data changed, refreshing...');
+      }, (payload) => {
+        console.log('📦 Item data changed:', payload.eventType);
         fetchAdminData();
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📦 Items subscription status:', status);
+      });
 
+    // Verification documents subscription
+    const verificationSubscription = supabase
+      .channel('admin-verifications-realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'verification_documents'
+      }, (payload) => {
+        console.log('🔍 Verification data changed:', payload.eventType);
+        fetchAdminData();
+      })
+      .subscribe((status) => {
+        console.log('🔍 Verifications subscription status:', status);
+      });
+
+    // Cleanup subscriptions on unmount
     return () => {
+      console.log('🔄 Cleaning up subscriptions...');
       userSubscription.unsubscribe();
       itemSubscription.unsubscribe();
+      verificationSubscription.unsubscribe();
     };
-  }, [navigate]);
+  };
 
   const fetchAdminData = async () => {
     try {
       setLoading(true);
       console.log('🔄 Fetching admin data...');
 
-      // Fetch all users with their actual email from auth
+      // Fetch all users with their verification documents
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select(`
           *,
-          verifications(*)
+          verification_documents:verification_documents(*)
         `)
         .order('created_at', { ascending: false });
 
       if (usersError) {
         console.error('Users fetch error:', usersError);
         throw usersError;
-      }
-
-      // Get actual user emails from auth.users
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      
-      const emailMap: { [key: string]: string } = {};
-      if (authUsers?.users) {
-        authUsers.users.forEach(authUser => {
-          if (authUser.id && authUser.email) {
-            emailMap[authUser.id] = authUser.email;
-          }
-        });
       }
 
       // Get items count for each user
@@ -185,7 +250,7 @@ const AdminDashboard: React.FC = () => {
       // Transform users data
       const transformedUsers: AdminUser[] = (usersData || []).map(user => ({
         id: user.id,
-        email: emailMap[user.id] || `user-${user.id.slice(0, 8)}@lizexpress.com`,
+        email: user.email || `user-${user.id.slice(0, 8)}@lizexpress.com`,
         full_name: user.full_name,
         avatar_url: user.avatar_url,
         residential_address: user.residential_address,
@@ -196,7 +261,7 @@ const AdminDashboard: React.FC = () => {
         created_at: user.created_at,
         items_count: itemCounts?.[user.id] || 0,
         status: user.is_verified ? 'active' : 'flagged' as const,
-        verifications: user.verifications || []
+        verifications: user.verification_documents || []
       }));
 
       console.log(`✅ Fetched ${transformedUsers.length} users`);
@@ -224,6 +289,12 @@ const AdminDashboard: React.FC = () => {
         .from('chats')
         .select('id');
 
+      // Count pending verification documents
+      const { data: pendingVerificationsData } = await supabase
+        .from('verification_documents')
+        .select('id')
+        .eq('status', 'pending');
+
       // Calculate statistics
       const today = new Date().toISOString().split('T')[0];
       const newUsersToday = transformedUsers.filter(user => 
@@ -244,7 +315,8 @@ const AdminDashboard: React.FC = () => {
         newUsersToday,
         newItemsToday,
         totalChats: chatsData?.length || 0,
-        activeUsers: Math.floor(transformedUsers.length * 0.3)
+        activeUsers: Math.floor(transformedUsers.length * 0.3),
+        pendingVerifications: pendingVerificationsData?.length || 0
       };
 
       setStats(calculatedStats);
@@ -257,8 +329,90 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const viewUserVerifications = async (userId: string) => {
+    try {
+      setActionLoading(userId);
+      console.log(`🔍 Fetching verification documents for user: ${userId}`);
+
+      const { data, error } = await supabase.rpc('get_user_verification_documents', {
+        target_user_id: userId
+      });
+
+      if (error) {
+        console.error('Error fetching verification documents:', error);
+        // Fallback to direct query
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        const { data: documentsData } = await supabase
+          .from('verification_documents')
+          .select('*')
+          .eq('user_id', userId);
+
+        setVerificationData({
+          user: userData,
+          documents: documentsData || []
+        });
+      } else if (data?.success) {
+        setVerificationData({
+          user: data.user,
+          documents: data.documents || []
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error viewing user verifications:', error);
+      alert('Failed to load verification documents');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const reviewVerificationDocument = async (
+    documentId: string, 
+    status: 'approved' | 'rejected', 
+    notes?: string
+  ) => {
+    if (!currentAdmin?.email) {
+      alert('Admin session expired. Please login again.');
+      return;
+    }
+
+    try {
+      setActionLoading(documentId);
+      
+      const { data, error } = await supabase.rpc('review_verification_document', {
+        document_id: documentId,
+        admin_email: currentAdmin.email,
+        new_status: status,
+        review_notes_text: notes
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        alert(`✅ Document ${status} successfully!`);
+        // Refresh verification data
+        if (verificationData) {
+          await viewUserVerifications(verificationData.user.id);
+        }
+        // Refresh main data
+        await fetchAdminData();
+      } else {
+        throw new Error(data?.error || 'Failed to review document');
+      }
+    } catch (error) {
+      console.error('❌ Error reviewing document:', error);
+      alert('Failed to review document. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const approveUser = async (userId: string) => {
-    if (!adminSession?.admin?.email) {
+    if (!currentAdmin?.email) {
       alert('Admin session expired. Please login again.');
       return;
     }
@@ -267,48 +421,14 @@ const AdminDashboard: React.FC = () => {
       setActionLoading(userId);
       console.log(`🔄 Approving user: ${userId}`);
 
-      // Try RPC function first, fallback to direct update
-      let success = false;
-      let errorMessage = '';
+      const { data, error } = await supabase.rpc('admin_approve_user', {
+        target_user_id: userId,
+        admin_email: currentAdmin.email
+      });
 
-      try {
-        const { data, error } = await supabase.rpc('admin_approve_user', {
-          target_user_id: userId,
-          admin_email: adminSession.admin.email
-        });
+      if (error) throw error;
 
-        if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || 'RPC function failed');
-        success = true;
-      } catch (rpcError) {
-        console.warn('RPC function failed, trying direct update:', rpcError);
-        
-        // Fallback: Direct database update
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ 
-            is_verified: true, 
-            verification_submitted: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userId);
-
-        if (updateError) throw updateError;
-
-        // Create notification
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: userId,
-            type: 'user_approved',
-            title: '✅ Account Verified!',
-            content: 'Congratulations! Your account has been verified by our admin team.'
-          });
-
-        success = true;
-      }
-
-      if (success) {
+      if (data?.success) {
         console.log(`✅ User ${userId} approved successfully`);
         
         // Update local state immediately
@@ -323,9 +443,7 @@ const AdminDashboard: React.FC = () => {
         }));
 
         alert('✅ User approved successfully!');
-        
-        // Refresh data in background
-        setTimeout(fetchAdminData, 1000);
+        await fetchAdminData();
       }
 
     } catch (error) {
@@ -337,7 +455,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const flagUser = async (userId: string, reason: string = 'Policy violation') => {
-    if (!adminSession?.admin?.email) {
+    if (!currentAdmin?.email) {
       alert('Admin session expired. Please login again.');
       return;
     }
@@ -346,65 +464,28 @@ const AdminDashboard: React.FC = () => {
       setActionLoading(userId);
       console.log(`🚩 Flagging user: ${userId}`);
 
-      // Try RPC function first, fallback to direct update
-      let success = false;
+      const { data, error } = await supabase.rpc('admin_flag_user', {
+        target_user_id: userId,
+        admin_email: currentAdmin.email,
+        reason: reason
+      });
 
-      try {
-        const { data, error } = await supabase.rpc('admin_flag_user', {
-          target_user_id: userId,
-          admin_email: adminSession.admin.email,
-          reason: reason
-        });
+      if (error) throw error;
 
-        if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || 'RPC function failed');
-        success = true;
-      } catch (rpcError) {
-        console.warn('RPC function failed, trying direct update:', rpcError);
-        
-        // Fallback: Direct database update
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ 
-            is_verified: false, 
-            status: 'flagged',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userId);
-
-        if (updateError) throw updateError;
-
-        // Create notification
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: userId,
-            type: 'account_flagged',
-            title: '⚠️ Account Flagged',
-            content: `Your account has been flagged for review. Reason: ${reason}`
-          });
-
-        success = true;
-      }
-
-      if (success) {
+      if (data?.success) {
         console.log(`✅ User ${userId} flagged successfully`);
 
-        // Update local state immediately
         setUsers(prev => prev.map(user => 
           user.id === userId ? { ...user, is_verified: false, status: 'flagged' } : user
         ));
 
-        // Update stats immediately
         setStats(prev => ({
           ...prev,
           verifiedUsers: Math.max(0, prev.verifiedUsers - 1)
         }));
 
         alert('✅ User flagged successfully!');
-        
-        // Refresh data in background
-        setTimeout(fetchAdminData, 1000);
+        await fetchAdminData();
       }
 
     } catch (error) {
@@ -416,7 +497,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const deleteUser = async (userId: string) => {
-    if (!adminSession?.admin?.email) return;
+    if (!currentAdmin?.email) return;
     
     if (!confirm('⚠️ PERMANENT ACTION: Are you sure you want to completely delete this user? This will remove all their data including items, chats, and cannot be undone.')) {
       return;
@@ -428,32 +509,26 @@ const AdminDashboard: React.FC = () => {
       
       const { data, error } = await supabase.rpc('admin_delete_user', {
         target_user_id: userId,
-        admin_email: adminSession.admin.email
+        admin_email: currentAdmin.email
       });
 
       if (error) throw error;
 
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to delete user');
+      if (data?.success) {
+        console.log(`✅ User ${userId} permanently deleted`);
+
+        setUsers(prev => prev.filter(user => user.id !== userId));
+        setItems(prev => prev.filter(item => item.user_id !== userId));
+
+        setStats(prev => ({
+          ...prev,
+          totalUsers: prev.totalUsers - 1,
+          verifiedUsers: prev.verifiedUsers - (users.find(u => u.id === userId)?.is_verified ? 1 : 0)
+        }));
+
+        alert('✅ User permanently deleted successfully!');
+        await fetchAdminData();
       }
-
-      console.log(`✅ User ${userId} permanently deleted`);
-
-      // Immediately remove from local state
-      setUsers(prev => prev.filter(user => user.id !== userId));
-      setItems(prev => prev.filter(item => item.user_id !== userId));
-
-      // Update stats immediately
-      setStats(prev => ({
-        ...prev,
-        totalUsers: prev.totalUsers - 1,
-        verifiedUsers: prev.verifiedUsers - (users.find(u => u.id === userId)?.is_verified ? 1 : 0)
-      }));
-
-      alert('✅ User permanently deleted successfully!');
-
-      // Refresh data in background
-      setTimeout(fetchAdminData, 1000);
 
     } catch (error) {
       console.error('❌ Error deleting user:', error);
@@ -464,7 +539,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const approveItem = async (itemId: string) => {
-    if (!adminSession?.admin?.email) {
+    if (!currentAdmin?.email) {
       alert('Admin session expired. Please login again.');
       return;
     }
@@ -473,72 +548,25 @@ const AdminDashboard: React.FC = () => {
       setActionLoading(itemId);
       console.log(`🔄 Approving item: ${itemId}`);
 
-      // Try RPC function first, fallback to direct update
-      let success = false;
-      let itemData = null;
+      const { data, error } = await supabase.rpc('admin_approve_item', {
+        item_id: itemId,
+        admin_email: currentAdmin.email
+      });
 
-      try {
-        const { data, error } = await supabase.rpc('admin_approve_item', {
-          item_id: itemId,
-          admin_email: adminSession.admin.email
-        });
+      if (error) throw error;
 
-        if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || 'RPC function failed');
-        success = true;
-      } catch (rpcError) {
-        console.warn('RPC function failed, trying direct update:', rpcError);
-        
-        // Get item data first
-        const { data: item } = await supabase
-          .from('items')
-          .select('*, users!inner(id, full_name)')
-          .eq('id', itemId)
-          .single();
-
-        if (item) {
-          itemData = item;
-          
-          // Fallback: Direct database update
-          const { error: updateError } = await supabase
-            .from('items')
-            .update({ 
-              status: 'active',
-              approved_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', itemId);
-
-          if (updateError) throw updateError;
-
-          // Create notification
-          await supabase
-            .from('notifications')
-            .insert({
-              user_id: item.user_id,
-              type: 'item_approved',
-              title: '🎉 Item Approved!',
-              content: `Great news! Your item "${item.name}" has been approved and is now visible to other users.`
-            });
-
-          success = true;
-        }
-      }
-
-      if (success) {
+      if (data?.success) {
         console.log(`✅ Item ${itemId} approved successfully`);
         
-        // Update local state immediately
         setItems(prev => prev.map(item => 
           item.id === itemId ? { 
             ...item, 
             status: 'active', 
             approved_at: new Date().toISOString(),
-            approved_by: adminSession.admin.email
+            approved_by: currentAdmin.email
           } : item
         ));
 
-        // Update stats immediately
         setStats(prev => ({
           ...prev,
           pendingItems: prev.pendingItems - 1,
@@ -557,79 +585,40 @@ const AdminDashboard: React.FC = () => {
   };
 
   const rejectItem = async (itemId: string, reason: string = 'Does not meet guidelines') => {
-    if (!adminSession?.admin?.email) return;
+    if (!currentAdmin?.email) return;
 
     try {
       setActionLoading(itemId);
       console.log(`❌ Rejecting item: ${itemId}`);
 
-      // Try RPC function first
-      let success = false;
-      try {
-        const { data, error } = await supabase.rpc('admin_reject_item', {
-          item_id: itemId,
-          admin_email: adminSession.admin.email,
-          reason: reason
-        });
+      const { data, error } = await supabase.rpc('admin_reject_item', {
+        item_id: itemId,
+        admin_email: currentAdmin.email,
+        reason: reason
+      });
 
-        if (!error && data?.success) {
-          success = true;
-        }
-      } catch (rpcError) {
-        console.warn('RPC function failed, trying direct update:', rpcError);
+      if (error) throw error;
+
+      if (data?.success) {
+        console.log(`✅ Item ${itemId} rejected successfully`);
+        
+        setItems(prev => prev.map(item => 
+          item.id === itemId ? { 
+            ...item, 
+            status: 'rejected',
+            rejection_reason: reason,
+            approved_by: currentAdmin.email
+          } : item
+        ));
+
+        setStats(prev => ({
+          ...prev,
+          pendingItems: prev.pendingItems - 1,
+          rejectedItems: prev.rejectedItems + 1
+        }));
+
+        alert('✅ Item rejected successfully!');
       }
-
-      // Fallback to direct database update
-      if (!success) {
-        // Get item data first
-        const { data: item } = await supabase
-          .from('items')
-          .select('*, users!inner(id, full_name)')
-          .eq('id', itemId)
-          .single();
-
-        if (item) {
-          const { error: updateError } = await supabase
-            .from('items')
-            .update({
-              status: 'rejected',
-              rejection_reason: reason,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', itemId);
-
-          if (updateError) throw updateError;
-
-          // Create notification
-          await supabase
-            .from('notifications')
-            .insert({
-              user_id: item.user_id,
-              type: 'item_rejected',
-              title: '❌ Item Rejected',
-              content: `Your item "${item.name}" has been rejected. Reason: ${reason}. Please contact support if you believe this is an error.`
-            });
-        }
-      }
-
-      console.log(`✅ Item ${itemId} rejected successfully`);
-      
-      // Update local state immediately
-      setItems(prev => prev.map(item => 
-        item.id === itemId ? { 
-          ...item, 
-          status: 'rejected',
-          rejection_reason: reason,
-          approved_by: adminSession.admin.email
-        } : item
-      ));
-
-      // Update stats immediately
-      setStats(prev => ({
-        ...prev,
-        pendingItems: prev.pendingItems - 1,
-        rejectedItems: prev.rejectedItems + 1
-      }));
 
     } catch (error) {
       console.error('❌ Error rejecting item:', error);
@@ -639,9 +628,13 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleSignOut = () => {
-    localStorage.removeItem('adminSession');
-    navigate('/admin');
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate('/admin');
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
   };
 
   const exportUsers = () => {
@@ -694,7 +687,7 @@ const AdminDashboard: React.FC = () => {
       <div className="flex items-center justify-between h-16 px-6 bg-black/20">
         <div>
           <h1 className="text-xl font-bold text-white">LizExpress Admin</h1>
-          <p className="text-xs text-white/70">{adminSession?.admin?.role?.replace('_', ' ').toUpperCase()}</p>
+          <p className="text-xs text-white/70">ADMINISTRATOR</p>
         </div>
         <button
           onClick={() => setSidebarOpen(false)}
@@ -708,6 +701,7 @@ const AdminDashboard: React.FC = () => {
         {[
           { id: 'overview', label: 'Overview', icon: TrendingUp },
           { id: 'users', label: 'User Management', icon: Users },
+          { id: 'verifications', label: 'Verifications', icon: Shield, badge: stats.pendingVerifications },
           { id: 'items', label: 'Item Approvals', icon: Package },
           { id: 'analytics', label: 'Analytics', icon: BarChart3 },
         ].map((item) => {
@@ -727,6 +721,11 @@ const AdminDashboard: React.FC = () => {
             >
               <IconComponent size={20} className="mr-3" />
               {item.label}
+              {item.badge && item.badge > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                  {item.badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -735,8 +734,8 @@ const AdminDashboard: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4">
         <div className="bg-white/10 rounded-lg p-3 mb-4">
           <p className="text-white/80 text-sm">Logged in as:</p>
-          <p className="text-white font-medium text-sm">{adminSession?.admin?.full_name}</p>
-          <p className="text-white/60 text-xs">{adminSession?.admin?.email}</p>
+          <p className="text-white font-medium text-sm">{currentAdmin?.full_name}</p>
+          <p className="text-white/60 text-xs">{currentAdmin?.email}</p>
         </div>
         <button
           onClick={handleSignOut}
@@ -849,6 +848,24 @@ const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+            {user.verification_submitted && (
+              <button
+                onClick={() => {
+                  viewUserVerifications(user.id);
+                  onClose();
+                }}
+                disabled={actionLoading === user.id}
+                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {actionLoading === user.id ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <FileText size={16} />
+                )}
+                <span>View Verification Documents</span>
+              </button>
+            )}
+
             {!user.is_verified && (
               <button
                 onClick={() => {
@@ -894,6 +911,125 @@ const AdminDashboard: React.FC = () => {
               <span>Delete User</span>
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const VerificationModal = ({ data, onClose }: { data: UserVerificationData; onClose: () => void }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Verification Documents</h2>
+              <p className="text-gray-600">{data.user.full_name} • {data.user.email}</p>
+            </div>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          {data.documents.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <FileText size={48} className="mx-auto mb-4 opacity-50" />
+              <p>No verification documents submitted</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {data.documents.map((doc) => (
+                <div key={doc.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <FileText size={16} className="text-gray-400" />
+                      <span className="font-medium text-sm capitalize">
+                        {doc.document_type.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      doc.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      doc.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {doc.status === 'approved' ? <CheckCircle size={12} className="inline mr-1" /> :
+                       doc.status === 'rejected' ? <XCircle size={12} className="inline mr-1" /> :
+                       <Clock size={12} className="inline mr-1" />}
+                      {doc.status}
+                    </span>
+                  </div>
+
+                  <div className="mb-3">
+                    <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                      <img
+                        src={doc.document_url}
+                        alt={doc.document_name || 'Document'}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => window.open(doc.document_url, '_blank')}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <p className="text-gray-600">
+                      <strong>File:</strong> {doc.document_name || 'Unnamed'}
+                    </p>
+                    <p className="text-gray-600">
+                      <strong>Size:</strong> {(doc.file_size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                    <p className="text-gray-600">
+                      <strong>Uploaded:</strong> {new Date(doc.created_at).toLocaleDateString()}
+                    </p>
+                    {doc.review_notes && (
+                      <p className="text-gray-600">
+                        <strong>Notes:</strong> {doc.review_notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex items-center space-x-2">
+                    <button
+                      onClick={() => window.open(doc.document_url, '_blank')}
+                      className="flex-1 flex items-center justify-center space-x-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-3 rounded-lg transition-colors text-sm"
+                    >
+                      <ExternalLink size={14} />
+                      <span>View Full</span>
+                    </button>
+                    
+                    {doc.status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => reviewVerificationDocument(doc.id, 'approved')}
+                          disabled={actionLoading === doc.id}
+                          className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                        >
+                          {actionLoading === doc.id ? (
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Check size={14} />
+                          )}
+                          <span className="hidden sm:inline">Approve</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            const notes = prompt('Enter rejection reason (optional):');
+                            reviewVerificationDocument(doc.id, 'rejected', notes || undefined);
+                          }}
+                          disabled={actionLoading === doc.id}
+                          className="flex items-center space-x-1 bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                        >
+                          <X size={14} />
+                          <span className="hidden sm:inline">Reject</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -991,9 +1127,9 @@ const AdminDashboard: React.FC = () => {
                   change={stats.newItemsToday}
                 />
                 <StatCard
-                  title="Pending Approvals"
-                  value={stats.pendingItems}
-                  icon={AlertTriangle}
+                  title="Pending Verifications"
+                  value={stats.pendingVerifications}
+                  icon={Clock}
                   color="bg-orange-500"
                 />
               </div>
@@ -1001,16 +1137,16 @@ const AdminDashboard: React.FC = () => {
               {/* Additional Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <StatCard
+                  title="Pending Items"
+                  value={stats.pendingItems}
+                  icon={AlertTriangle}
+                  color="bg-yellow-600"
+                />
+                <StatCard
                   title="Approved Items"
                   value={stats.approvedItems}
                   icon={Check}
                   color="bg-green-600"
-                />
-                <StatCard
-                  title="Rejected Items"
-                  value={stats.rejectedItems}
-                  icon={X}
-                  color="bg-red-600"
                 />
                 <StatCard
                   title="Total Chats"
@@ -1170,6 +1306,20 @@ const AdminDashboard: React.FC = () => {
                               >
                                 <Eye size={16} />
                               </button>
+                              {user.verification_submitted && (
+                                <button
+                                  onClick={() => viewUserVerifications(user.id)}
+                                  disabled={actionLoading === user.id}
+                                  className="text-purple-600 hover:text-purple-900 disabled:opacity-50"
+                                  title="View Verification Documents"
+                                >
+                                  {actionLoading === user.id ? (
+                                    <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                                  ) : (
+                                    <FileText size={16} />
+                                  )}
+                                </button>
+                              )}
                               {!user.is_verified && (
                                 <button
                                   onClick={() => approveUser(user.id)}
@@ -1211,6 +1361,77 @@ const AdminDashboard: React.FC = () => {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'verifications' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <h2 className="text-xl font-semibold">Verification Management</h2>
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <Clock className="w-4 h-4" />
+                  <span>{stats.pendingVerifications} pending reviews</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {users
+                  .filter(user => user.verification_submitted)
+                  .map(user => (
+                    <div key={user.id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                      <div className="flex items-center space-x-4 mb-4">
+                        <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden">
+                          <img
+                            src={user.avatar_url || "https://via.placeholder.com/48"}
+                            alt={user.full_name || 'User'}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">{user.full_name || 'No name'}</h3>
+                          <p className="text-sm text-gray-600">{user.email}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          user.is_verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {user.is_verified ? 'Verified' : 'Pending'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 text-sm text-gray-600 mb-4">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="w-4 h-4" />
+                          <span>Submitted: {new Date(user.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <MapPin className="w-4 h-4" />
+                          <span>{user.state && user.country ? `${user.state}, ${user.country}` : 'Location not provided'}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => viewUserVerifications(user.id)}
+                        disabled={actionLoading === user.id}
+                        className="w-full flex items-center justify-center space-x-2 bg-[#4A0E67] hover:bg-[#3a0b50] text-white py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {actionLoading === user.id ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <FileText size={16} />
+                        )}
+                        <span>Review Documents</span>
+                      </button>
+                    </div>
+                  ))}
+              </div>
+
+              {users.filter(user => user.verification_submitted).length === 0 && (
+                <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+                  <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Verification Submissions</h3>
+                  <p className="text-gray-600">Users haven't submitted verification documents yet.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1412,11 +1633,9 @@ const AdminDashboard: React.FC = () => {
                       <span className="text-sm font-medium">Items Listed Today</span>
                       <span className="text-lg font-bold text-blue-600">{stats.newItemsToday}</span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium">Platform Health</span>
-                      <span className="text-lg font-bold text-gray-600">
-                        {stats.totalUsers > 0 && stats.totalItems > 0 ? 'Excellent' : 'Growing'}
-                      </span>
+                    <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                      <span className="text-sm font-medium">Pending Verifications</span>
+                      <span className="text-lg font-bold text-orange-600">{stats.pendingVerifications}</span>
                     </div>
                   </div>
                 </div>
@@ -1426,9 +1645,13 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* User Modal */}
+      {/* Modals */}
       {selectedUser && (
         <UserModal user={selectedUser} onClose={() => setSelectedUser(null)} />
+      )}
+
+      {verificationData && (
+        <VerificationModal data={verificationData} onClose={() => setVerificationData(null)} />
       )}
     </div>
   );
