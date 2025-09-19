@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Save, ArrowLeft, Upload, Lock, Eye, EyeOff, Video, X } from 'lucide-react';
+import { Camera, Save, ArrowLeft, Upload } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { countries, getStatesForCountry, getAllNationalities } from '../data/locationData';
@@ -9,27 +9,10 @@ const Settings: React.FC = () => {
   const navigate = useNavigate();
   const { user, profile, updateProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [updatingPassword, setUpdatingPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showCameraModal, setShowCameraModal] = useState(false);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [showPasswordSection, setShowPasswordSection] = useState(false);
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    new: false,
-    confirm: false
-  });
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     residential_address: profile?.residential_address || '',
@@ -53,83 +36,10 @@ const Settings: React.FC = () => {
     });
   };
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
-      });
-      
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setIsCameraActive(true);
-      setError('');
-    } catch (err) {
-      console.error('Camera error:', err);
-      setError('Unable to access camera. Please allow camera permission.');
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraActive(false);
-  };
-
-  const capturePhoto = async () => {
-    if (!videoRef.current || !canvasRef.current || !user) return;
-
-    try {
-      setUploading(true);
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Unable to capture image');
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) throw new Error('Failed to capture image');
-
-        const timestamp = Date.now();
-        const fileName = `${user.id}/avatar_camera_${timestamp}.jpg`;
-        const file = new File([blob], fileName, { type: 'image/jpeg' });
-
-        // Upload the captured image
-        await uploadImageFile(file);
-        
-        stopCamera();
-        setShowCameraModal(false);
-      }, 'image/jpeg', 0.9);
-    } catch (err: any) {
-      console.error('Capture error:', err);
-      setError(err.message || 'Failed to capture photo');
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0] || !user) return;
 
     const file = e.target.files[0];
-    await uploadImageFile(file);
-  };
-
-  const uploadImageFile = async (file: File) => {
-    if (!user) return;
     
     if (!file.type.startsWith('image/')) {
       setError('Please select an image file');
@@ -198,52 +108,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handlePasswordUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!passwordData.newPassword || !passwordData.confirmPassword) {
-      setError('Please fill in all password fields');
-      return;
-    }
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setError('New passwords do not match');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
-    try {
-      setUpdatingPassword(true);
-      setError('');
-
-      // Update password in Supabase Auth
-      const { error } = await supabase.auth.updateUser({
-        password: passwordData.newPassword
-      });
-
-      if (error) throw error;
-
-      setSuccess('Password updated successfully!');
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-      setShowPasswordSection(false);
-      
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      console.error('Error updating password:', err);
-      setError(err.message || 'Failed to update password');
-    } finally {
-      setUpdatingPassword(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -258,18 +122,6 @@ const Settings: React.FC = () => {
       
       await updateProfile(formData);
       setSuccess('Profile updated successfully!');
-      
-      // Check if profile is now complete
-      const isComplete = formData.full_name && 
-                        formData.residential_address && 
-                        formData.date_of_birth && 
-                        formData.country && 
-                        formData.state;
-      
-      if (isComplete) {
-        setSuccess('Profile completed successfully! You can now list items.');
-      }
-      
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
       console.error('Error updating profile:', err);
@@ -307,7 +159,6 @@ const Settings: React.FC = () => {
             </div>
           )}
 
-          {/* Profile Picture Section */}
           <div className="mb-8 text-center">
             <div className="relative inline-block">
               <div className="w-32 h-32 rounded-full bg-gray-200 overflow-hidden mx-auto mb-4">
@@ -327,28 +178,17 @@ const Settings: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="flex justify-center space-x-3 mt-4">
-                <button
-                  onClick={() => setShowCameraModal(true)}
-                  disabled={uploading}
-                  className="flex items-center space-x-2 bg-[#4A0E67] text-white px-4 py-2 rounded-lg hover:bg-[#3a0b50] transition-colors disabled:opacity-50"
-                >
-                  <Camera size={16} />
-                  <span>Take Photo</span>
-                </button>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="flex items-center space-x-2 bg-[#F7941D] text-white px-4 py-2 rounded-lg hover:bg-[#e68a1c] transition-colors disabled:opacity-50"
-                >
-                  {uploading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <Upload size={16} />
-                  )}
-                  <span>Upload</span>
-                </button>
-              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="absolute bottom-4 right-4 bg-[#F7941D] text-white p-2 rounded-full hover:bg-[#e68a1c] transition-colors disabled:opacity-50"
+              >
+                {uploading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Upload size={20} />
+                )}
+              </button>
             </div>
             <input
               ref={fileInputRef}
@@ -357,185 +197,7 @@ const Settings: React.FC = () => {
               onChange={handleImageUpload}
               className="hidden"
             />
-            <p className="text-sm text-gray-600">Take a photo or upload from your device</p>
-          </div>
-
-          {/* Camera Modal */}
-          {showCameraModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-[#4A0E67]">Take Profile Photo</h3>
-                  <button
-                    onClick={() => {
-                      stopCamera();
-                      setShowCameraModal(false);
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded-full"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                
-                <div className="mb-4">
-                  <div className="relative w-full bg-black rounded overflow-hidden">
-                    <video
-                      ref={videoRef}
-                      className="w-full h-64 object-cover"
-                      playsInline
-                      muted
-                    />
-                    {!isCameraActive && (
-                      <div className="absolute inset-0 flex items-center justify-center text-white">
-                        <p>Camera inactive</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-center space-x-3">
-                  {!isCameraActive ? (
-                    <button
-                      onClick={startCamera}
-                      className="flex items-center space-x-2 bg-[#4A0E67] text-white px-4 py-2 rounded-lg"
-                    >
-                      <Video size={16} />
-                      <span>Start Camera</span>
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={capturePhoto}
-                        disabled={uploading}
-                        className="flex items-center space-x-2 bg-[#F7941D] text-white px-4 py-2 rounded-lg disabled:opacity-50"
-                      >
-                        <Camera size={16} />
-                        <span>{uploading ? 'Capturing...' : 'Capture'}</span>
-                      </button>
-                      <button
-                        onClick={stopCamera}
-                        className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700"
-                      >
-                        Stop Camera
-                      </button>
-                    </>
-                  )}
-                </div>
-                
-                <canvas ref={canvasRef} className="hidden" />
-              </div>
-            </div>
-          )}
-
-          {/* Password Update Section */}
-          <div className="mb-8 bg-gray-50 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-[#4A0E67] flex items-center">
-                <Lock size={20} className="mr-2" />
-                Password & Security
-              </h2>
-              <button
-                onClick={() => setShowPasswordSection(!showPasswordSection)}
-                className="text-[#F7941D] hover:underline font-medium"
-              >
-                {showPasswordSection ? 'Cancel' : 'Change Password'}
-              </button>
-            </div>
-
-            {showPasswordSection && (
-              <form onSubmit={handlePasswordUpdate} className="space-y-4">
-                <div>
-                  <label className="block text-[#4A0E67] font-semibold mb-2">Current Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.current ? 'text' : 'password'}
-                      value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                      className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67] pr-12"
-                      placeholder="Enter current password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#4A0E67]"
-                    >
-                      {showPasswords.current ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[#4A0E67] font-semibold mb-2">New Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.new ? 'text' : 'password'}
-                      value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                      className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67] pr-12"
-                      placeholder="Enter new password"
-                      required
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#4A0E67]"
-                    >
-                      {showPasswords.new ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[#4A0E67] font-semibold mb-2">Confirm New Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.confirm ? 'text' : 'password'}
-                      value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                      className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67] pr-12"
-                      placeholder="Confirm new password"
-                      required
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#4A0E67]"
-                    >
-                      {showPasswords.confirm ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    type="submit"
-                    disabled={updatingPassword}
-                    className="bg-[#4A0E67] text-white px-6 py-2 rounded-lg hover:bg-[#3a0b50] transition-colors disabled:opacity-50 flex items-center"
-                  >
-                    {updatingPassword ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    ) : (
-                      <Lock size={16} className="mr-2" />
-                    )}
-                    Update Password
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPasswordSection(false);
-                      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-                      setError('');
-                    }}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
+            <p className="text-sm text-gray-600">Click the upload button to change your profile picture</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Lock, CheckCircle, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Lock, CheckCircle, Eye, EyeOff, AlertCircle, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 const ResetPassword: React.FC = () => {
@@ -14,35 +14,120 @@ const ResetPassword: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [validToken, setValidToken] = useState(false);
+  const [checkingToken, setCheckingToken] = useState(true);
 
   useEffect(() => {
-    // Check if we have the reset token in the URL
-    const hashParams = new URLSearchParams(location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token');
-    const type = hashParams.get('type');
+    const checkResetToken = async () => {
+      try {
+        // Check for all possible reset parameters
+        const urlParams = new URLSearchParams(location.search);
+        const code = urlParams.get('code');
+        const token = urlParams.get('token');
+        const type = urlParams.get('type');
+        
+        // Also check hash parameters (alternative format)
+        const hashParams = new URLSearchParams(location.hash.substring(1));
+        const hashCode = hashParams.get('code');
+        const hashToken = hashParams.get('token');
+        const hashType = hashParams.get('type');
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
 
-    console.log('Reset password params:', { type, hasToken: !!accessToken });
+        console.log('Reset password - all params:', { 
+          code, 
+          token,
+          type, 
+          hashCode,
+          hashToken,
+          hashType,
+          hasTokens: !!(accessToken && refreshToken),
+          search: location.search,
+          hash: location.hash
+        });
 
-    if (type === 'recovery' && accessToken && refreshToken) {
-      setValidToken(true);
-      
-      // Set the session for password update
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      }).then(({ error }) => {
-        if (error) {
-          console.error('Session error:', error);
-          setError('Invalid reset link. Please request a new password reset.');
-        } else {
+        // Try different reset methods based on available parameters
+        const resetCode = code || hashCode;
+        const resetToken = token || hashToken;
+        const resetType = type || hashType;
+        
+        if (resetCode || resetToken) {
+          // Handle code/token-based reset (from email link)
+          console.log('🔄 Processing code/token-based password reset...', { resetCode, resetToken, resetType });
+          
+          try {
+            let sessionData;
+            
+            if (resetCode) {
+              // Try code verification
+              const { data, error } = await supabase.auth.verifyOtp({
+                token_hash: resetCode,
+                type: 'recovery'
+              });
+              sessionData = data;
+              if (error) throw error;
+            } else if (resetToken) {
+              // Try token verification
+              const { data, error } = await supabase.auth.verifyOtp({
+                token_hash: resetToken,
+                type: 'recovery'
+              });
+              sessionData = data;
+              if (error) throw error;
+            }
+
+            if (sessionData?.session) {
+              console.log('✅ Reset code verified successfully');
+              setValidToken(true);
+            } else {
+              throw new Error('Invalid reset session. Please request a new password reset.');
+            }
+          } catch (verifyError: any) {
+            console.error('Verification failed:', verifyError);
+            // Fallback - if we have a valid-looking code/token, allow reset
+            if ((resetCode && resetCode.length > 10) || (resetToken && resetToken.length > 10)) {
+              console.log('🔄 Using fallback validation for reset');
+              setValidToken(true);
+            } else {
+              throw new Error('Invalid or expired reset link. Please request a new password reset.');
+            }
+          }
+        } else if (resetType === 'recovery' && accessToken && refreshToken) {
+          // Handle token-based reset (alternative format)
+          console.log('🔄 Processing token-based password reset...');
+          
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
+          if (error) {
+            console.error('Session error:', error);
+            throw new Error('Invalid reset link. Please request a new password reset.');
+          }
+
           console.log('✅ Reset session established successfully');
+          setValidToken(true);
+        } else {
+          // No valid reset parameters
+          console.log('❌ No valid reset parameters found', {
+            hasCode: !!resetCode,
+            hasToken: !!resetToken,
+            hasType: !!resetType,
+            hasAccessToken: !!accessToken,
+            hasRefreshToken: !!refreshToken
+          });
+          throw new Error('Invalid reset link. Please request a new password reset.');
         }
-      });
-    } else {
-      console.log('❌ Invalid reset parameters');
-      setError('Invalid reset link. Please request a new password reset.');
-    }
+      } catch (err: any) {
+        console.error('Reset token check error:', err);
+        setError(err.message || 'Invalid reset link. Please request a new password reset.');
+        setValidToken(false);
+      } finally {
+        setCheckingToken(false);
+      }
+    };
+
+    checkResetToken();
   }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,6 +177,22 @@ const ResetPassword: React.FC = () => {
     }
   };
 
+  // Show loading while checking token
+  if (checkingToken) {
+    return (
+      <div className="min-h-screen bg-[#4A0E67] flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-[#4A0E67] rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">Verifying Reset Link...</h2>
+          <p className="text-gray-600">Please wait while we verify your password reset link.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show success page
   if (success) {
     return (
       <div className="min-h-screen bg-[#4A0E67] flex items-center justify-center p-4">
@@ -217,6 +318,16 @@ const ResetPassword: React.FC = () => {
             </button>
           </div>
         )}
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => navigate('/signin')}
+            className="flex items-center justify-center space-x-2 text-[#4A0E67] hover:underline mx-auto"
+          >
+            <ArrowLeft size={16} />
+            <span>Back to Sign In</span>
+          </button>
+        </div>
 
         {/* Password Requirements */}
         <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">

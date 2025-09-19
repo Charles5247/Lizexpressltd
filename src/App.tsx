@@ -26,6 +26,7 @@ import EmailConfirmation from './components/auth/EmailConfirmation';
 import Settings from './pages/Settings';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
+import HomePageHandler from './components/HomePageHandler';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -38,10 +39,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 function AppContent() {
-  const { user } = useAuth();
+  useAuth();
   const { isLoading } = usePreloader(2500); // Minimum 2.5 seconds loading
 
-  useEffect(() => {
+  useEffect(() => { // user 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -85,6 +86,9 @@ function AppContent() {
                 <Route path="/items/:id" element={<ItemDetails />} />
                 <Route path="/email-confirmation" element={<EmailConfirmation />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                
+                {/* Handle password reset with code parameter */}
+                <Route path="/" element={<HomePageHandler />} />
                 
                 {/* Protected Routes */}
                 <Route path="/settings" element={
