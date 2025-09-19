@@ -19,80 +19,57 @@ const ResetPassword: React.FC = () => {
   useEffect(() => {
     const checkResetToken = async () => {
       try {
-        // Check for all possible reset parameters
+        // Get parameters from both URL and hash
         const urlParams = new URLSearchParams(location.search);
         const code = urlParams.get('code');
         const token = urlParams.get('token');
         const type = urlParams.get('type');
         
-        // Also check hash parameters (alternative format)
         const hashParams = new URLSearchParams(location.hash.substring(1));
-        const hashCode = hashParams.get('code');
-        const hashToken = hashParams.get('token');
         const hashType = hashParams.get('type');
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
+        const errorParam = hashParams.get('error');
 
-        console.log('Reset password - all params:', { 
+        console.log('Reset password params:', { 
           code, 
           token,
           type, 
-          hashCode,
-          hashToken,
           hashType,
           hasTokens: !!(accessToken && refreshToken),
-          search: location.search,
-          hash: location.hash
+          errorParam
         });
 
-        // Try different reset methods based on available parameters
-        const resetCode = code || hashCode;
-        const resetToken = token || hashToken;
-        const resetType = type || hashType;
+        // Handle auth errors
+        if (errorParam) {
+          throw new Error('Invalid or expired reset link. Please request a new password reset.');
+        }
         
-        if (resetCode || resetToken) {
-          // Handle code/token-based reset (from email link)
-          console.log('🔄 Processing code/token-based password reset...', { resetCode, resetToken, resetType });
+        // Handle code-based reset (from email link)
+        if (code) {
+          console.log('🔄 Processing code-based password reset...');
           
           try {
-            let sessionData;
-            
-            if (resetCode) {
-              // Try code verification
-              const { data, error } = await supabase.auth.verifyOtp({
-                token_hash: resetCode,
-                type: 'recovery'
-              });
-              sessionData = data;
-              if (error) throw error;
-            } else if (resetToken) {
-              // Try token verification
-              const { data, error } = await supabase.auth.verifyOtp({
-                token_hash: resetToken,
-                type: 'recovery'
-              });
-              sessionData = data;
-              if (error) throw error;
-            }
+            const { data, error } = await supabase.auth.verifyOtp({
+              token_hash: code,
+              type: 'recovery'
+            });
 
-            if (sessionData?.session) {
+            if (error) throw error;
+
+            if (data?.session) {
               console.log('✅ Reset code verified successfully');
               setValidToken(true);
             } else {
-              throw new Error('Invalid reset session. Please request a new password reset.');
+              throw new Error('Invalid reset code. Please request a new password reset.');
             }
           } catch (verifyError: any) {
             console.error('Verification failed:', verifyError);
-            // Fallback - if we have a valid-looking code/token, allow reset
-            if ((resetCode && resetCode.length > 10) || (resetToken && resetToken.length > 10)) {
-              console.log('🔄 Using fallback validation for reset');
-              setValidToken(true);
-            } else {
-              throw new Error('Invalid or expired reset link. Please request a new password reset.');
-            }
+            throw new Error('Invalid or expired reset link. Please request a new password reset.');
           }
-        } else if (resetType === 'recovery' && accessToken && refreshToken) {
-          // Handle token-based reset (alternative format)
+        } 
+        // Handle token-based reset
+        else if ((type === 'recovery' || hashType === 'recovery') && accessToken && refreshToken) {
           console.log('🔄 Processing token-based password reset...');
           
           const { error } = await supabase.auth.setSession({
@@ -107,15 +84,32 @@ const ResetPassword: React.FC = () => {
 
           console.log('✅ Reset session established successfully');
           setValidToken(true);
-        } else {
+        } 
+        // Handle direct token parameter
+        else if (token) {
+          console.log('🔄 Processing direct token reset...');
+          
+          try {
+            const { data, error } = await supabase.auth.verifyOtp({
+              token_hash: token,
+              type: 'recovery'
+            });
+
+            if (error) throw error;
+
+            if (data?.session) {
+              console.log('✅ Token verified successfully');
+              setValidToken(true);
+            } else {
+              throw new Error('Invalid token. Please request a new password reset.');
+            }
+          } catch (verifyError: any) {
+            console.error('Token verification failed:', verifyError);
+            throw new Error('Invalid or expired reset token. Please request a new password reset.');
+          }
+        } 
+        else {
           // No valid reset parameters
-          console.log('❌ No valid reset parameters found', {
-            hasCode: !!resetCode,
-            hasToken: !!resetToken,
-            hasType: !!resetType,
-            hasAccessToken: !!accessToken,
-            hasRefreshToken: !!refreshToken
-          });
           throw new Error('Invalid reset link. Please request a new password reset.');
         }
       } catch (err: any) {

@@ -129,18 +129,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { error, data } = await supabase.auth.signUp({
         email, 
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/email-confirmation`,
-          data: {
-            site_url: window.location.origin,
-            email_confirm_redirect_url: `${window.location.origin}/email-confirmation`
-          }
         }
       });
-      if (error) throw error;
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log('Sign up successful:', data);
     } catch (error) {
       console.error('Error signing up:', error);
       throw error;
@@ -149,11 +150,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      // Clear local state first
+      setUser(null);
+      setProfile(null);
+      
+      // Try to sign out from Supabase, but don't fail if session is invalid
+      try {
+        await supabase.auth.signOut();
+      } catch (supabaseError: any) {
+        // Log the error but don't throw it - session might already be invalid
+        console.warn('Supabase signout warning:', supabaseError.message);
+      }
+      
+      // Clear any local storage
+      localStorage.removeItem('supabase.auth.token');
+      localStorage.removeItem('sb-kxzqqvddiqwvxmcwkmdb-auth-token');
+      
     } catch (error) {
-      console.error('Error signing out:', error);
-      throw error;
+      // Even if there's an error, ensure user is logged out locally
+      console.warn('Sign out error handled gracefully:', error);
+      setUser(null);
+      setProfile(null);
     }
   };
 

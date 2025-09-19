@@ -39,18 +39,17 @@ const SignUp: React.FC = () => {
         await signUp(email, password);
         setSuccess(true);
       } catch (signUpError: any) {
-        // Check if email already exists
-        if (signUpError.message?.includes('already registered') || 
-            signUpError.message?.includes('already exists') ||
-            signUpError.message?.includes('User already registered')) {
-          setError('This email is already registered. Please sign in or reset your password if you forgot it.');
-          return;
-        }
         throw signUpError;
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Failed to create account. Please try again.');
+      if (err.message?.includes('already registered') || 
+          err.message?.includes('already exists') ||
+          err.message?.includes('User already registered')) {
+        setError('This email is already registered. Please sign in or reset your password if you forgot it.');
+      } else {
+        setError(err.message || 'Failed to create account. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

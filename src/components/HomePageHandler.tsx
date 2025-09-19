@@ -8,67 +8,54 @@ const HomePageHandler: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if this is a password reset link - handle both URL formats
+    // Check if this is an auth callback (email confirmation or password reset)
     const urlParams = new URLSearchParams(location.search);
     const code = urlParams.get('code');
-    const token = urlParams.get('token');
     const type = urlParams.get('type');
+    const token = urlParams.get('token');
     
     // Also check hash parameters (alternative format)
     const hashParams = new URLSearchParams(location.hash.substring(1));
-    const hashCode = hashParams.get('code');
-    const hashToken = hashParams.get('token');
     const hashType = hashParams.get('type');
     const accessToken = hashParams.get('access_token');
     const refreshToken = hashParams.get('refresh_token');
+    const errorParam = hashParams.get('error');
+    const errorDescription = hashParams.get('error_description');
     
-    console.log('Homepage handler - checking for reset:', { 
+    console.log('Homepage handler - checking for auth callback:', { 
       code, 
       token, 
       type, 
-      hashCode, 
-      hashToken, 
       hashType,
       accessToken,
       refreshToken,
+      errorParam,
+      errorDescription,
       search: location.search,
       hash: location.hash 
     });
 
-    // Check for password reset indicators
-    const isPasswordReset = 
-      code || // Direct code parameter
-      token || // Token parameter
-      hashCode || // Hash code parameter
-      hashToken || // Hash token parameter
-      type === 'recovery' || // Recovery type
-      hashType === 'recovery' || // Hash recovery type
-      (accessToken && refreshToken && hashType === 'recovery'); // Full token reset
+    // Handle email confirmation (signup)
+    if (type === 'signup' || (accessToken && refreshToken && !hashType)) {
+      console.log('🔄 Detected email confirmation, redirecting...');
+      navigate('/email-confirmation', { replace: true });
+      return;
+    }
+
+    // Handle password reset
+    if (code || type === 'recovery' || hashType === 'recovery' || (accessToken && refreshToken && hashType === 'recovery')) {
+      console.log('🔄 Detected password reset, redirecting...');
+      navigate('/reset-password', { replace: true });
+      return;
+    }
     
-    if (isPasswordReset) {
-      console.log('🔄 Detected password reset link, redirecting...');
-      // Navigate to reset password page with all parameters
-      const fullParams = location.search + (location.hash ? '&' + location.hash.substring(1) : '');
-      navigate(`/reset-password${fullParams}`, { replace: true });
+    // Handle auth errors
+    if (errorParam) {
+      console.log('🔄 Detected auth error, redirecting to confirmation...');
+      navigate('/email-confirmation', { replace: true });
+      return;
     }
   }, [location, navigate]);
-
-  // Check if this should be a reset password page (for direct rendering)
-  const urlParams = new URLSearchParams(location.search);
-  const hashParams = new URLSearchParams(location.hash.substring(1));
-  
-  const hasResetCode = 
-    urlParams.get('code') || 
-    urlParams.get('token') ||
-    urlParams.get('type') === 'recovery' ||
-    hashParams.get('code') ||
-    hashParams.get('token') ||
-    hashParams.get('type') === 'recovery' ||
-    (hashParams.get('access_token') && hashParams.get('refresh_token'));
-
-  if (hasResetCode) {
-    return <ResetPassword />;
-  }
 
   return <LandingPage />;
 };

@@ -12,33 +12,88 @@ const EmailConfirmation: React.FC = () => {
   useEffect(() => {
     const handleEmailConfirmation = async () => {
       try {
-        // Get the hash from URL (Supabase auth tokens)
+        // Get parameters from both URL and hash
+        const urlParams = new URLSearchParams(location.search);
         const hashParams = new URLSearchParams(location.hash.substring(1));
+        
+        // Check URL parameters first
+        const code = urlParams.get('code');
+        const type = urlParams.get('type');
+        const token = urlParams.get('token');
+        
+        // Then check hash parameters
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
-        const type = hashParams.get('type');
-        const error = hashParams.get('error');
+        const hashType = hashParams.get('type');
+        const errorParam = hashParams.get('error');
         const errorDescription = hashParams.get('error_description');
 
-        console.log('Email confirmation params:', { 
-          type, 
-          error, 
+        console.log('Email confirmation params:', {
+          code,
+          type,
+          token,
+          hashType,
+          errorParam,
           errorDescription, 
           hasTokens: !!(accessToken && refreshToken)
         });
 
         // Handle errors from Supabase
-        if (error) {
-          if (error === 'access_denied' && errorDescription?.includes('already_confirmed')) {
+        if (errorParam) {
+          if (errorParam === 'access_denied' && errorDescription?.includes('already_confirmed')) {
             setStatus('already_confirmed');
             setMessage('Your email is already confirmed! You can sign in now.');
             return;
           }
-          throw new Error(errorDescription || error);
+          throw new Error(errorDescription || errorParam);
         }
 
-        // Handle signup confirmation
-        if (type === 'signup' && accessToken && refreshToken) {
+        // Handle email confirmation with code parameter
+        if (code && type === 'signup') {
+          console.log('Processing email confirmation with code...');
+          
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: code,
+            type: 'signup'
+          });
+
+          if (verifyError) {
+            console.error('Code verification error:', verifyError);
+            throw verifyError;
+          }
+
+          if (data.user) {
+            console.log('User confirmed successfully with code:', data.user.email);
+            
+            // Create user profile
+            const { error: profileError } = await supabase
+              .from('users')
+              .upsert({
+                id: data.user.id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                profile_completed: false
+              }, {
+                onConflict: 'id'
+              });
+
+            if (profileError) {
+              console.error('Profile creation error:', profileError);
+            }
+
+            setStatus('success');
+            setMessage('Email confirmed successfully! Please complete your profile to start listing items.');
+            
+            // Redirect to settings after 3 seconds
+            setTimeout(() => {
+              navigate('/signin');
+            }, 3000);
+          } else {
+            throw new Error('No user data received');
+          }
+        }
+        // Handle signup confirmation with tokens
+        else if ((type === 'signup' || !hashType) && accessToken && refreshToken) {
           console.log('Processing signup confirmation...');
           
           // Set the session with the tokens
@@ -55,52 +110,45 @@ const EmailConfirmation: React.FC = () => {
           if (data.user) {
             console.log('User confirmed successfully:', data.user.email);
             
-            // Create user profile if it doesn't exist
-            const { data: existingProfile } = await supabase
+            // Create user profile
+            const { error: profileError } = await supabase
               .from('users')
-              .select('*')
-              .eq('id', data.user.id)
-              .single();
+              .upsert({
+                id: data.user.id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                profile_completed: false
+              }, {
+                onConflict: 'id'
+              });
 
-            if (!existingProfile) {
-              console.log('Creating user profile...');
-              const { error: profileError } = await supabase
-                .from('users')
-                .insert({
-                  id: data.user.id,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  profile_completed: false
-                });
-
-              if (profileError) {
-                console.error('Profile creation error:', profileError);
-              }
+            if (profileError) {
+              console.error('Profile creation error:', profileError);
             }
 
             setStatus('success');
             setMessage('Email confirmed successfully! Please complete your profile to start listing items.');
             
-            // Redirect to settings after 3 seconds
+            // Redirect to sign in after 3 seconds
             setTimeout(() => {
-              navigate('/settings');
+              navigate('/signin');
             }, 3000);
           } else {
             throw new Error('No user data received');
           }
         } else {
-          // No valid confirmation data
-          throw new Error('Invalid confirmation link or missing parameters');
+          // Invalid confirmation data
+          throw new Error('Invalid confirmation link. Please check your email for the correct link.');
         }
       } catch (error: any) {
         console.error('Email confirmation error:', error);
         setStatus('error');
-        setMessage(error.message || 'Failed to confirm email. The link may be expired or invalid.');
+        setMessage(error.message || 'Failed to confirm email. Please try signing up again or contact support.');
       }
     };
 
-    // Check if there's a hash in the URL
-    if (location.hash) {
+    // Check if there are auth parameters in URL or hash
+    if (location.search || location.hash) {
       handleEmailConfirmation();
     } else {
       setStatus('error');
@@ -135,17 +183,17 @@ const EmailConfirmation: React.FC = () => {
             </div>
             <div className="space-y-3">
               <button
-                onClick={() => navigate('/settings')}
+                onClick={() => navigate('/signin')}
                 className="w-full bg-[#4A0E67] text-white py-3 px-4 rounded hover:bg-[#3a0b50] transition-colors flex items-center justify-center"
               >
-                <Settings className="w-5 h-5 mr-2" />
-                Complete Profile Now
+                <User className="w-5 h-5 mr-2" />
+                Sign In Now
               </button>
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/settings')}
                 className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded hover:bg-gray-200 transition-colors"
               >
-                Go to Dashboard
+                Complete Profile Later
               </button>
             </div>
           </>
