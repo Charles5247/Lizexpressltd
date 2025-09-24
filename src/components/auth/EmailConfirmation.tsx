@@ -12,20 +12,30 @@ const EmailConfirmation: React.FC = () => {
   useEffect(() => {
     const handleEmailConfirmation = async () => {
       try {
-        // Get hash parameters (Supabase uses hash fragments for auth tokens)
+        // Get parameters from both URL and hash
+        const urlParams = new URLSearchParams(location.search);
         const hashParams = new URLSearchParams(location.hash.substring(1));
+        
+        // Check URL parameters first
+        const code = urlParams.get('code');
+        const type = urlParams.get('type');
+        const token = urlParams.get('token');
+        
+        // Then check hash parameters
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
-        const type = hashParams.get('type');
+        const hashType = hashParams.get('type');
         const errorParam = hashParams.get('error');
         const errorDescription = hashParams.get('error_description');
 
-        console.log('Email confirmation - hash params:', {
+        console.log('Email confirmation params:', {
+          code,
           type,
-          hasAccessToken: !!accessToken,
-          hasRefreshToken: !!refreshToken,
+          token,
+          hashType,
           errorParam,
-          errorDescription
+          errorDescription, 
+          hasTokens: !!(accessToken && refreshToken)
         });
 
         // Handle errors from Supabase
@@ -38,23 +48,22 @@ const EmailConfirmation: React.FC = () => {
           throw new Error(errorDescription || errorParam);
         }
 
-        // Handle signup confirmation with session tokens (modern Supabase flow)
-        if (accessToken && refreshToken && (type === 'signup' || !type)) {
-          console.log('🔄 Processing email confirmation with session tokens...');
+        // Handle email confirmation with code parameter
+        if (code && type === 'signup') {
+          console.log('Processing email confirmation with code...');
           
-          // Set the session with the provided tokens
-          const { data, error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: code,
+            type: 'signup'
           });
 
-          if (sessionError) {
-            console.error('Session error:', sessionError);
-            throw sessionError;
+          if (verifyError) {
+            console.error('Code verification error:', verifyError);
+            throw verifyError;
           }
 
           if (data.user) {
-            console.log('✅ User confirmed successfully:', data.user.email);
+            console.log('User confirmed successfully with code:', data.user.email);
             
             // Create user profile
             const { error: profileError } = await supabase
@@ -73,17 +82,62 @@ const EmailConfirmation: React.FC = () => {
             }
 
             setStatus('success');
-            setMessage('Registration successful! Your email has been confirmed.');
+            setMessage('Email confirmed successfully! Please complete your profile to start listing items.');
             
-            // Redirect to sign in after showing success message
+            // Redirect to settings after 3 seconds
             setTimeout(() => {
               navigate('/signin');
-            }, 4000);
+            }, 3000);
           } else {
-            throw new Error('No user data received from confirmation');
+            throw new Error('No user data received');
+          }
+        }
+        // Handle signup confirmation with tokens
+        else if ((type === 'signup' || !hashType) && accessToken && refreshToken) {
+          console.log('Processing signup confirmation...');
+          
+          // Set the session with the tokens
+          const { data, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
+          if (sessionError) {
+            console.error('Session error:', sessionError);
+            throw sessionError;
+          }
+
+          if (data.user) {
+            console.log('User confirmed successfully:', data.user.email);
+            
+            // Create user profile
+            const { error: profileError } = await supabase
+              .from('users')
+              .upsert({
+                id: data.user.id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                profile_completed: false
+              }, {
+                onConflict: 'id'
+              });
+
+            if (profileError) {
+              console.error('Profile creation error:', profileError);
+            }
+
+            setStatus('success');
+            setMessage('Email confirmed successfully! Please complete your profile to start listing items.');
+            
+            // Redirect to sign in after 3 seconds
+            setTimeout(() => {
+              navigate('/signin');
+            }, 3000);
+          } else {
+            throw new Error('No user data received');
           }
         } else {
-          // No valid confirmation tokens
+          // Invalid confirmation data
           throw new Error('Invalid confirmation link. Please check your email for the correct link.');
         }
       } catch (error: any) {
@@ -93,8 +147,8 @@ const EmailConfirmation: React.FC = () => {
       }
     };
 
-    // Check if there are auth parameters in hash
-    if (location.hash) {
+    // Check if there are auth parameters in URL or hash
+    if (location.search || location.hash) {
       handleEmailConfirmation();
     } else {
       setStatus('error');
@@ -116,15 +170,15 @@ const EmailConfirmation: React.FC = () => {
         {status === 'success' && (
           <>
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">🎉 Registration Successful!</h2>
+            <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">🎉 Email Confirmed Successfully!</h2>
             <p className="text-gray-600 mb-6">{message}</p>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <div className="flex items-center justify-center mb-2">
                 <User className="w-5 h-5 text-blue-600 mr-2" />
-                <p className="text-sm font-semibold text-blue-800">Welcome to LizExpress!</p>
+                <p className="text-sm font-semibold text-blue-800">Next Step: Complete Your Profile</p>
               </div>
               <p className="text-sm text-blue-700">
-                Your account is now active. Sign in to complete your profile and start swapping items!
+                You must complete your profile with all required information before you can list items. This ensures quality and trust in our marketplace.
               </p>
             </div>
             <div className="space-y-3">
@@ -133,7 +187,13 @@ const EmailConfirmation: React.FC = () => {
                 className="w-full bg-[#4A0E67] text-white py-3 px-4 rounded hover:bg-[#3a0b50] transition-colors flex items-center justify-center"
               >
                 <User className="w-5 h-5 mr-2" />
-                Continue to Sign In
+                Sign In Now
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded hover:bg-gray-200 transition-colors"
+              >
+                Complete Profile Later
               </button>
             </div>
           </>

@@ -8,33 +8,45 @@ const HomePageHandler: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if this is an auth callback using hash parameters (Supabase modern flow)
+    // Check if this is an auth callback (email confirmation or password reset)
+    const urlParams = new URLSearchParams(location.search);
+    const code = urlParams.get('code');
+    const type = urlParams.get('type');
+    const token = urlParams.get('token');
+    
+    // Also check hash parameters (alternative format)
     const hashParams = new URLSearchParams(location.hash.substring(1));
+    const hashType = hashParams.get('type');
     const accessToken = hashParams.get('access_token');
     const refreshToken = hashParams.get('refresh_token');
-    const type = hashParams.get('type');
     const errorParam = hashParams.get('error');
+    const errorDescription = hashParams.get('error_description');
     
     console.log('Homepage handler - checking for auth callback:', { 
-      type,
-      hasTokens: !!(accessToken && refreshToken),
+      code, 
+      token, 
+      type, 
+      hashType,
+      accessToken,
+      refreshToken,
       errorParam,
+      errorDescription,
+      search: location.search,
       hash: location.hash 
     });
 
-    // Only redirect if we have actual auth tokens/parameters
-    if (accessToken && refreshToken) {
-      if (type === 'signup') {
-        console.log('🔄 Detected email confirmation, redirecting...');
-        navigate('/email-confirmation', { replace: true });
-        return;
-      }
-      
-      if (type === 'recovery') {
-        console.log('🔄 Detected password reset, redirecting...');
-        navigate('/reset-password', { replace: true });
-        return;
-      }
+    // Handle email confirmation (signup)
+    if (type === 'signup' || (accessToken && refreshToken && !hashType)) {
+      console.log('🔄 Detected email confirmation, redirecting...');
+      navigate('/email-confirmation', { replace: true });
+      return;
+    }
+
+    // Handle password reset
+    if (code || type === 'recovery' || hashType === 'recovery' || (accessToken && refreshToken && hashType === 'recovery')) {
+      console.log('🔄 Detected password reset, redirecting...');
+      navigate('/reset-password', { replace: true });
+      return;
     }
     
     // Handle auth errors
