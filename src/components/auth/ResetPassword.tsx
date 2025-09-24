@@ -19,97 +19,50 @@ const ResetPassword: React.FC = () => {
   useEffect(() => {
     const checkResetToken = async () => {
       try {
-        // Get parameters from both URL and hash
-        const urlParams = new URLSearchParams(location.search);
-        const code = urlParams.get('code');
-        const token = urlParams.get('token');
-        const type = urlParams.get('type');
-        
+        // Get hash parameters (Supabase uses hash fragments for auth tokens)
         const hashParams = new URLSearchParams(location.hash.substring(1));
-        const hashType = hashParams.get('type');
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
+        const type = hashParams.get('type');
         const errorParam = hashParams.get('error');
+        const errorDescription = hashParams.get('error_description');
 
-        console.log('Reset password params:', { 
-          code, 
-          token,
-          type, 
-          hashType,
-          hasTokens: !!(accessToken && refreshToken),
-          errorParam
+        console.log('Password reset - hash params:', {
+          type,
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+          errorParam,
+          errorDescription
         });
 
-        // Handle auth errors
+        // Handle errors from Supabase
         if (errorParam) {
-          throw new Error('Invalid or expired reset link. Please request a new password reset.');
+          throw new Error(errorDescription || 'Invalid reset link. Please request a new password reset.');
         }
-        
-        // Handle code-based reset (from email link)
-        if (code) {
-          console.log('🔄 Processing code-based password reset...');
-          
-          try {
-            const { data, error } = await supabase.auth.verifyOtp({
-              token_hash: code,
-              type: 'recovery'
-            });
 
-            if (error) throw error;
-
-            if (data?.session) {
-              console.log('✅ Reset code verified successfully');
-              setValidToken(true);
-            } else {
-              throw new Error('Invalid reset code. Please request a new password reset.');
-            }
-          } catch (verifyError: any) {
-            console.error('Verification failed:', verifyError);
-            throw new Error('Invalid or expired reset link. Please request a new password reset.');
-          }
-        } 
-        // Handle token-based reset
-        else if ((type === 'recovery' || hashType === 'recovery') && accessToken && refreshToken) {
-          console.log('🔄 Processing token-based password reset...');
+        // Handle password reset with session tokens (modern Supabase flow)
+        if (accessToken && refreshToken && type === 'recovery') {
+          console.log('🔄 Processing password reset with session tokens...');
           
-          const { error } = await supabase.auth.setSession({
+          // Set the session with the provided tokens
+          const { data, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           });
 
-          if (error) {
-            console.error('Session error:', error);
+          if (sessionError) {
+            console.error('Session error:', sessionError);
             throw new Error('Invalid reset link. Please request a new password reset.');
           }
 
-          console.log('✅ Reset session established successfully');
-          setValidToken(true);
-        } 
-        // Handle direct token parameter
-        else if (token) {
-          console.log('🔄 Processing direct token reset...');
-          
-          try {
-            const { data, error } = await supabase.auth.verifyOtp({
-              token_hash: token,
-              type: 'recovery'
-            });
-
-            if (error) throw error;
-
-            if (data?.session) {
-              console.log('✅ Token verified successfully');
-              setValidToken(true);
-            } else {
-              throw new Error('Invalid token. Please request a new password reset.');
-            }
-          } catch (verifyError: any) {
-            console.error('Token verification failed:', verifyError);
-            throw new Error('Invalid or expired reset token. Please request a new password reset.');
+          if (data.session && data.user) {
+            console.log('✅ Reset session established successfully for:', data.user.email);
+            setValidToken(true);
+          } else {
+            throw new Error('Failed to establish reset session. Please request a new password reset.');
           }
-        } 
-        else {
-          // No valid reset parameters
+        } else {
+          // No valid reset tokens
           throw new Error('Invalid reset link. Please request a new password reset.');
         }
       } catch (err: any) {
@@ -121,7 +74,13 @@ const ResetPassword: React.FC = () => {
       }
     };
 
-    checkResetToken();
+    // Only process if there are hash parameters
+    if (location.hash) {
+      checkResetToken();
+    } else {
+      setError('Invalid reset link. Please request a new password reset.');
+      setCheckingToken(false);
+    }
   }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
