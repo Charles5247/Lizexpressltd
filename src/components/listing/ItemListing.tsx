@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import VerificationFlow from '../verification/VerificationFlow';
 import { useVerificationStatus } from '../../hooks/useVerificationStatus';
 import LoadingSpinner from '../ui/LoadingSpinner';
+import PaymentModal from '../PaymentModal';
 import { countries, getStatesForCountry } from '../../data/locationData';
 
 const ItemListing: React.FC = () => {
@@ -15,6 +16,8 @@ const ItemListing: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showVerification, setShowVerification] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingItemData, setPendingItemData] = useState<any>(null);
   const [formData, setFormData] = useState({
     itemName: '',
     buyingPrice: '',

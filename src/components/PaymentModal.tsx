@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { X, CreditCard, Shield, AlertCircle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { paymentService } from '../services/paymentService';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   itemValue: number;
   onPaymentSuccess: () => void;
+  itemId?: string; // Add itemId for linking payment to specific item
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemValue, onPaymentSuccess }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemValue, onPaymentSuccess, itemId }) => {
+  const { user, profile } = useAuth();
   const [showTerms, setShowTerms] = useState(true);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,26 +27,74 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemValue,
   };
 
   const handlePayment = async () => {
+    if (!user || !profile) {
+      alert('Please log in to make a payment');
+      return;
+    }
+
     setLoading(true);
     
     try {
-      // Initialize Flutterwave payment
+      // Generate unique transaction reference
+      const tx_ref = `lizexpress_${Date.now()}_${user.id}`;
+      
+      // Create payment record in database
+      await paymentService.createPaymentRecord({
+        tx_ref,
+        amount: listingFee,
+        currency: 'NGN',
+        status: 'pending',
+        user_id: user.id,
+        item_id: itemId,
+      });
+
+      // Get Flutterwave public key from environment variables
+      const flutterwavePublicKey = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-a1368523a69b943a37fb262905da65ed-X";
+      
+      // Initialize Flutterwave payment with real user data
       const flutterwaveConfig = {
-        public_key: "FLWPUBK_TEST-SANDBOXDEMOKEY-X", // Replace with your actual public key
-        tx_ref: `lizexpress_${Date.now()}`,
+        public_key: flutterwavePublicKey,
+        tx_ref,
         amount: listingFee,
         currency: "NGN",
         payment_options: "card,mobilemoney,ussd",
         customer: {
-          email: "customer@example.com",
-          phone_number: "080****4528",
-          name: "Customer Name",
+          email: user.email || profile.email || "customer@example.com",
+          phone_number: profile.phone_number || "080****4528",
+          name: profile.full_name || "Customer Name",
         },
         customizations: {
           title: "LizExpress Listing Fee",
           description: `Payment for listing item (5% of ₦${itemValue.toLocaleString()})`,
           logo: "https://imgur.com/CtN9l7s.png",
         },
+        callback: async (response: any) => {
+          console.log('Payment response:', response);
+          try {
+            if (response.status === 'successful') {
+              // Verify payment with Flutterwave
+              const isVerified = await paymentService.verifyPayment(tx_ref);
+              if (isVerified) {
+                onPaymentSuccess();
+                onClose();
+              } else {
+                alert('Payment verification failed. Please contact support.');
+              }
+            } else {
+              await paymentService.updatePaymentStatus(tx_ref, 'failed');
+              alert('Payment was not successful. Please try again.');
+            }
+          } catch (error) {
+            console.error('Payment callback error:', error);
+            alert('Payment processing error. Please contact support.');
+          } finally {
+            setLoading(false);
+          }
+        },
+        onclose: () => {
+          console.log('Payment modal closed');
+          setLoading(false);
+        }
       };
 
       // @ts-ignore - FlutterwaveCheckout is loaded from CDN
@@ -50,15 +102,21 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemValue,
         FlutterwaveCheckout(flutterwaveConfig);
       } else {
         // Fallback: simulate payment success for demo
-        setTimeout(() => {
-          onPaymentSuccess();
-          onClose();
+        setTimeout(async () => {
+          try {
+            await paymentService.updatePaymentStatus(tx_ref, 'successful');
+            onPaymentSuccess();
+            onClose();
+          } catch (error) {
+            console.error('Demo payment error:', error);
+          } finally {
+            setLoading(false);
+          }
         }, 2000);
       }
     } catch (error) {
       console.error('Payment error:', error);
       alert('Payment failed. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
