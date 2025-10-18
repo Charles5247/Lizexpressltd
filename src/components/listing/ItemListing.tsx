@@ -253,28 +253,51 @@ const ItemListing: React.FC = () => {
         status: 'pending' // Always start as pending for admin approval
       };
 
-      const { data, error } = await supabase
+      // Defer item creation until after successful payment
+      setPendingItemData(itemData);
+      setShowPaymentModal(true);
+      setLoading(false);
+      return;
+    } catch (err: any) {
+      console.error('Error creating item:', err);
+      setError(err.message || 'Failed to create item');
+    } finally {
+      // loading state handled around payment flow
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    if (!pendingItemData || !user) {
+      setShowPaymentModal(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { error } = await supabase
         .from('items')
-        .insert(itemData)
+        .insert(pendingItemData)
         .select()
         .single();
 
       if (error) throw error;
 
-      // Create notification for successful listing
       await supabase
         .from('notifications')
         .insert({
-          user_id: user!.id,
+          user_id: user.id,
           type: 'item_submitted',
           title: 'Item Submitted for Review! ⏳',
-          content: `Your item "${formData.itemName}" has been submitted for admin review. You'll be notified once it's approved and visible to other users.`
+          content: `Your item "${pendingItemData.name}" has been submitted for admin review. You'll be notified once it's approved and visible to other users.`
         });
 
+      setShowPaymentModal(false);
+      setPendingItemData(null);
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('Error creating item:', err);
-      setError(err.message || 'Failed to create item');
+      console.error('Post-payment item creation failed:', err);
+      setError(err.message || 'Payment succeeded but listing could not be created. Please contact support.');
+      setShowPaymentModal(false);
     } finally {
       setLoading(false);
     }
@@ -320,12 +343,7 @@ const ItemListing: React.FC = () => {
             </div>
           )}
 
-          <div className="bg-green-100 border border-green-400 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-green-700 mb-2">🎉 Free Listing Available</h3>
-            <p className="text-sm text-green-700">
-              You can now list your items for free! No listing fees required during this promotional period.
-            </p>
-          </div>
+          {/* Listing fee memo removed per request */}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Basic Item Information */}
@@ -567,6 +585,13 @@ const ItemListing: React.FC = () => {
           </form>
         </div>
       </div>
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        itemValue={parseFloat(formData.estimatedCost || '0') || 0}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 };
